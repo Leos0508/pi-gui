@@ -18,6 +18,7 @@ for (const invalid of [
   { version: 15, notificationPreferences: { futureSetting: true } },
   { version: 16, lastInteractedAtBySession: { one: 42 } },
   { version: 17, threadGrouping: "priority" },
+  { version: 18, collapsedWorkspaceIds: ["alpha", 42] },
   [],
 ]) {
   test(`preserves invalid UI state ${JSON.stringify(invalid)}`, async () => {
@@ -66,6 +67,20 @@ test("reads v16 ui-state without threadGrouping and writes the saved choice as v
   };
   expect(written.version).toBe(19);
   expect(written.threadGrouping).toBe("workspace");
+});
+
+test("reads ui-state without folded folders and writes the collapsed ids", async () => {
+  const path = join(await mkdtemp(join(tmpdir(), "ui-state-collapsed-")), "ui-state.json");
+  await writeFile(path, JSON.stringify({ version: 15, composerDraft: "kept" }));
+  expect((await readPersistedUiState(path)).collapsedWorkspaceIds).toBeUndefined();
+  await writePersistedUiState(path, { composerDraft: "kept", collapsedWorkspaceIds: ["alpha"] });
+  const written = JSON.parse(await readFile(path, "utf8")) as {
+    version: number;
+    collapsedWorkspaceIds: readonly string[];
+  };
+  expect(written.version).toBe(19);
+  expect(written.collapsedWorkspaceIds).toEqual(["alpha"]);
+  expect((await readPersistedUiState(path)).collapsedWorkspaceIds).toEqual(["alpha"]);
 });
 
 test("backup recovery retains damaged bytes and the good backup", async () => {

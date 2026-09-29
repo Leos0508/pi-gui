@@ -352,6 +352,8 @@ export interface DesktopAppState {
   readonly themePresetId: ThemePresetId;
   readonly sidebarCollapsed: boolean;
   readonly threadGrouping: ThreadGrouping;
+  /** Folder groups the user collapsed in the sidebar, by workspace id. */
+  readonly collapsedWorkspaceIds: readonly string[];
   readonly enableTransparency: boolean;
   readonly startupDiagnostics: readonly StartupDiagnostic[];
   readonly revision: number;
@@ -406,6 +408,7 @@ export function createEmptyDesktopAppState(): DesktopAppState {
     themePresetId: "default",
     sidebarCollapsed: false,
     threadGrouping: "time",
+    collapsedWorkspaceIds: [],
     enableTransparency: false,
     startupDiagnostics: [],
     revision: 0,

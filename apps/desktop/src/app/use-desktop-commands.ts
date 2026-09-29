@@ -175,6 +175,14 @@ export function useDesktopCommands(input: DesktopCommandsInput) {
       setPaletteMode((current) => (current === mode ? null : mode));
     }
   };
+  const setFolderCollapsed = (workspaceId: string, collapsed: boolean) => {
+    if (!api) return;
+    void updateSnapshot(setSnapshot, () => api.setWorkspaceCollapsed(workspaceId, collapsed)).catch(
+      (error: unknown) => {
+        console.error("[renderer] setWorkspaceCollapsed failed", error);
+      },
+    );
+  };
   const selectRecentThread = (index: number) => {
     const threads =
       threadShortcutOrderRef.current ??
@@ -182,6 +190,7 @@ export function useDesktopCommands(input: DesktopCommandsInput) {
         ? visibleThreadShortcutOrder({
             grouping: snapshot?.threadGrouping ?? "time",
             model: threadSidebarModel,
+            collapsedWorkspaceIds: snapshot?.collapsedWorkspaceIds ?? [],
           })
         : []);
     const thread = threads[index];
@@ -403,6 +412,7 @@ export function useDesktopCommands(input: DesktopCommandsInput) {
     };
   }, []);
 
+  const collapsedWorkspaceIds = snapshot?.collapsedWorkspaceIds ?? [];
   const paletteActions: readonly PaletteAction[] =
     paletteMode && threadSidebarModel && api
       ? buildPaletteActions({
@@ -421,6 +431,12 @@ export function useDesktopCommands(input: DesktopCommandsInput) {
           openExtensions: () => input.openExtensions(selectedRootWorkspaceId),
           openScheduledTasks: () => input.setActiveView("scheduled"),
           toggleSidebar: togglePrimarySidebar,
+          folders: (threadSidebarModel?.folders ?? []).map((folder) => ({
+            id: folder.id,
+            name: folder.name,
+            collapsed: collapsedWorkspaceIds.includes(folder.id),
+            toggle: () => setFolderCollapsed(folder.id, !collapsedWorkspaceIds.includes(folder.id)),
+          })),
           toggleTool: toggleWorkbenchTool,
           toggleSidePanel,
           extensionViews: input.extensionViews

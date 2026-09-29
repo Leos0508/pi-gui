@@ -45,6 +45,7 @@ export interface PersistedUiState {
   readonly appGlobalModelSettings?: ModelSettingsSnapshot;
   readonly sidebarCollapsed?: boolean;
   readonly threadGrouping?: ThreadGrouping;
+  readonly collapsedWorkspaceIds?: readonly string[];
   readonly allowMultiple?: boolean;
   readonly enableTransparency?: boolean;
   readonly themeMode?: ThemeMode;
@@ -118,6 +119,7 @@ export function decodePersistedUiState(parsed: unknown): LegacyPersistedUiState 
     threadGrouping: isThreadGrouping(candidate.threadGrouping)
       ? candidate.threadGrouping
       : undefined,
+    collapsedWorkspaceIds: toStringArray(candidate.collapsedWorkspaceIds),
     allowMultiple:
       typeof candidate.allowMultiple === "boolean" ? candidate.allowMultiple : undefined,
     enableTransparency:
@@ -211,6 +213,7 @@ function validateUiState(value: unknown): Record<string, unknown> {
       "appGlobalModelSettings",
       "sidebarCollapsed",
       "threadGrouping",
+      "collapsedWorkspaceIds",
       "allowMultiple",
       "enableTransparency",
       "themeMode",
@@ -257,7 +260,12 @@ function validateUiState(value: unknown): Record<string, unknown> {
     "pinnedAtBySession",
   ])
     optional(root, key, stringRecord);
-  for (const key of ["pinnedSessionOrder", "workspaceOrder", "disabledBuiltinExtensions"])
+  for (const key of [
+    "pinnedSessionOrder",
+    "workspaceOrder",
+    "disabledBuiltinExtensions",
+    "collapsedWorkspaceIds",
+  ])
     optional(root, key, strings);
   for (const key of ["sidebarCollapsed", "allowMultiple", "enableTransparency"])
     optional(root, key, boolean);

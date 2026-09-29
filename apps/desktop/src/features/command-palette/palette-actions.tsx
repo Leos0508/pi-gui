@@ -57,6 +57,13 @@ export interface PaletteActionContext {
   readonly openExtensions: () => void;
   readonly openScheduledTasks: () => void;
   readonly toggleSidebar: () => void;
+  /** Sidebar folder groups and whether each is folded shut. */
+  readonly folders: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly collapsed: boolean;
+    readonly toggle: () => void;
+  }[];
   /** Shows the tool in the side panel, or hides the panel when that tool is already showing. */
   readonly toggleTool: (kind: BuiltinToolKind) => void;
   readonly toggleSidePanel: () => void;
@@ -180,6 +187,14 @@ export function buildPaletteActions(context: PaletteActionContext): readonly Pal
       title: `Settings: ${sectionTitle(section)}`,
       icon: <SettingsIcon />,
       run: () => context.openSettings(section),
+    });
+  }
+  for (const folder of context.folders) {
+    actions.push({
+      id: `folder-collapse:${folder.id}`,
+      title: `${folder.collapsed ? "Expand" : "Collapse"} folder: ${folder.name}`,
+      icon: <FolderIcon />,
+      run: folder.toggle,
     });
   }
   return actions;
