@@ -93,8 +93,8 @@ export interface SessionTreeNodeSnapshot {
 
 /**
  * The session tree as a flat list, in depth-first order: every parent comes before its
- * children, and siblings run oldest first. A node whose parentId is null or not in the list
- * is a root. It is flat on purpose: Electron's contextBridge refuses values nested more than
+ * children, and siblings run oldest first. A node whose parentId is null, its own id, or not
+ * in the list is a root. It is flat on purpose: Electron's contextBridge refuses values nested more than
  * 1000 levels deep, and a nested tree gains a level per entry on its longest path.
  */
 export interface SessionTreeSnapshot {
