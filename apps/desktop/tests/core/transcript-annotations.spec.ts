@@ -150,6 +150,21 @@ test("adds transcript selections to chat with comments and sends them before the
     await expect(popover).toContainText("Why not wait?");
     await page.getByTestId("annotation-remove").click();
     await expect(page.getByTestId("annotation-marker")).toHaveText(["1"]);
+
+    // The mouse can travel diagonally from the chip up to its list and remove from there.
+    await dragSelect(page, "Your I-94");
+    await page.getByTestId("add-to-chat").click();
+    await page.getByTestId("annotation-editor").getByRole("textbox").press("Enter");
+    await expect(chip).toContainText("2 annotations");
+    await chip.getByRole("button", { name: "2 annotations" }).hover();
+    await expect(popover).toBeVisible();
+    const removeSecond = popover.getByRole("button", { name: "Remove annotation 2" });
+    const removeBox = (await removeSecond.boundingBox())!;
+    await page.mouse.move(removeBox.x + removeBox.width / 2, removeBox.y + removeBox.height / 2, {
+      steps: 12,
+    });
+    await removeSecond.click();
+    await expect(page.getByTestId("annotation-marker")).toHaveText(["1"]);
     await expect(chip).toContainText("1 annotation");
 
     // A failed send gives back the typed text and the annotation, not the formatted blocks.

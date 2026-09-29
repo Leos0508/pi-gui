@@ -25,6 +25,15 @@ export interface AnnotatedPrompt {
   readonly body: string;
 }
 
+// A line of quoted text that reads exactly like one of the tags would end its block early,
+// so such lines gain a leading backslash (and lose one when read back).
+const TAG_LINE = /^(\\*)(<\/?(?:annotation|quote|note)>)$/gm;
+const escapeTags = (text: string) => text.replace(TAG_LINE, "\\$1$2");
+const unescapeTags = (text: string) =>
+  text.replace(TAG_LINE, (line: string, slashes: string, tag: string) =>
+    slashes ? `${slashes.slice(1)}${tag}` : line,
+  );
+
 /**
  * The text pi receives: each annotation as a quote followed by its note, before the typed
  * message. The tags keep it unambiguous for the model and let the transcript show the
@@ -35,8 +44,8 @@ export function formatAnnotatedPrompt(
   body: string,
 ): string {
   const blocks = annotations.map(({ quote, note }) => {
-    const lines = ["<annotation>", "<quote>", quote, "</quote>"];
-    if (note.trim()) lines.push("<note>", note.trim(), "</note>");
+    const lines = ["<annotation>", "<quote>", escapeTags(quote), "</quote>"];
+    if (note.trim()) lines.push("<note>", escapeTags(note.trim()), "</note>");
     lines.push("</annotation>");
     return lines.join("\n");
   });
@@ -52,7 +61,7 @@ export function parseAnnotatedPrompt(text: string): AnnotatedPrompt | null {
   const annotations: SentAnnotation[] = [];
   let rest = text;
   for (let match = ANNOTATION_BLOCK.exec(rest); match; match = ANNOTATION_BLOCK.exec(rest)) {
-    annotations.push({ quote: match[1] ?? "", note: match[2] ?? "" });
+    annotations.push({ quote: unescapeTags(match[1] ?? ""), note: unescapeTags(match[2] ?? "") });
     rest = rest.slice(match[0].length);
   }
   return annotations.length > 0 ? { annotations, body: rest } : null;

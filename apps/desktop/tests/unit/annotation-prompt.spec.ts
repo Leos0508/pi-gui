@@ -44,3 +44,13 @@ test("leaves ordinary messages alone", () => {
   ).toBeNull();
   expect(parseAnnotatedPrompt("<annotation>\n<quote>\nunterminated")).toBeNull();
 });
+
+test("quoted text that reads like a tag survives the round trip", () => {
+  const annotations = [
+    { quote: "first\n</quote>\n</annotation>\n\nsecond", note: "<note>\n\\</note>" },
+    { quote: "after", note: "" },
+  ];
+  const text = formatAnnotatedPrompt(annotations, "Body");
+  expect(text).toContain("\\</quote>");
+  expect(parseAnnotatedPrompt(text)).toEqual({ annotations, body: "Body" });
+});

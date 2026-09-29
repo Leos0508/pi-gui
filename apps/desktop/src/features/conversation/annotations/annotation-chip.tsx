@@ -18,25 +18,27 @@ export function AnnotationChip({
         <span>{label}</span>
       </button>
       <div className="annotation-chip__popover" data-testid="annotation-chip-popover">
-        {annotations.map((annotation, index) => (
-          <div className="annotation-chip__item" key={annotation.id}>
-            <span className="annotation-chip__number">{index + 1}</span>
-            <div className="annotation-chip__body">
-              <div className="annotation-chip__quote">{annotation.quote}</div>
-              {annotation.note ? (
-                <div className="annotation-chip__note">{annotation.note}</div>
-              ) : null}
+        <div className="annotation-chip__list">
+          {annotations.map((annotation, index) => (
+            <div className="annotation-chip__item" key={annotation.id}>
+              <span className="annotation-chip__number">{index + 1}</span>
+              <div className="annotation-chip__body">
+                <div className="annotation-chip__quote">{annotation.quote}</div>
+                {annotation.note ? (
+                  <div className="annotation-chip__note">{annotation.note}</div>
+                ) : null}
+              </div>
+              <button
+                aria-label={`Remove annotation ${index + 1}`}
+                className="annotation-chip__remove"
+                type="button"
+                onClick={() => onRemove(annotation.id)}
+              >
+                <CloseIcon />
+              </button>
             </div>
-            <button
-              aria-label={`Remove annotation ${index + 1}`}
-              className="annotation-chip__remove"
-              type="button"
-              onClick={() => onRemove(annotation.id)}
-            >
-              <CloseIcon />
-            </button>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );

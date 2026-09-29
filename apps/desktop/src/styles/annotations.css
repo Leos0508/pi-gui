@@ -175,12 +175,21 @@
   color: var(--muted-strong);
 }
 
+/* The popover's transparent bottom padding bridges the gap to the chip, and it stays up
+   briefly after the pointer leaves, so a diagonal move from the chip still reaches the
+   list. The list inside it scrolls. */
 .annotation-chip__popover {
   position: absolute;
-  bottom: calc(100% + 6px);
+  bottom: 100%;
   left: 0;
   z-index: 30;
-  display: none;
+  padding-bottom: 6px;
+  visibility: hidden;
+  transition: visibility 0s linear 0.2s;
+}
+
+.annotation-chip__list {
+  display: grid;
   gap: 2px;
   width: min(420px, calc(100vw - 48px));
   max-height: 320px;
@@ -192,19 +201,10 @@
   box-shadow: var(--elevation-menu);
 }
 
-/* The gap between chip and list stays hoverable, so the pointer can reach the list. */
-.annotation-chip__popover::after {
-  content: "";
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  height: 8px;
-}
-
 .annotation-chip:hover .annotation-chip__popover,
 .annotation-chip:focus-within .annotation-chip__popover {
-  display: grid;
+  visibility: visible;
+  transition-delay: 0s;
 }
 
 .annotation-chip__item {
