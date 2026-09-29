@@ -1,3 +1,5 @@
+import type { SessionUsageSnapshot } from "./usage.js";
+
 export type WorkspaceId = string;
 export type SessionId = string;
 export type RunId = string;
@@ -38,6 +40,7 @@ export interface SessionSnapshot {
   readonly config?: SessionConfig;
   readonly runningRunId?: RunId;
   readonly queuedMessages?: readonly SessionQueuedMessage[];
+  readonly usage?: SessionUsageSnapshot;
 }
 
 export interface SessionImageAttachment {
@@ -86,11 +89,16 @@ export interface SessionTreeNodeSnapshot {
   readonly customType?: string;
   readonly title: string;
   readonly preview?: string;
-  readonly children: readonly SessionTreeNodeSnapshot[];
 }
 
+/**
+ * The session tree as a flat list, in depth-first order: every parent comes before its
+ * children, and siblings run oldest first. A node whose parentId is null, its own id, or not
+ * in the list is a root. It is flat on purpose: Electron's contextBridge refuses values nested more than
+ * 1000 levels deep, and a nested tree gains a level per entry on its longest path.
+ */
 export interface SessionTreeSnapshot {
-  readonly roots: readonly SessionTreeNodeSnapshot[];
+  readonly nodes: readonly SessionTreeNodeSnapshot[];
   readonly leafId: string | null;
 }
 

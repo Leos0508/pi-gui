@@ -6,6 +6,7 @@ import {
   type RefObject,
   type SetStateAction,
 } from "react";
+import type { SessionUsageSnapshot } from "@pi-gui/session-driver";
 import type { RuntimeSnapshot } from "@pi-gui/session-driver/runtime-types";
 import type {
   ComposerAttachment,
@@ -26,6 +27,7 @@ import type {
   ModelOnboardingState,
   ModelOnboardingSettingsSection,
 } from "../settings/model-onboarding";
+import { ContextMeter } from "./context-meter";
 import { ModelSelector } from "./model-selector";
 import type { ExtensionDockModel } from "../extensions/extension-session-ui";
 
@@ -34,12 +36,12 @@ interface ComposerPanelProps {
   readonly selectedSession: SessionRecord;
   readonly lastError?: string;
   readonly runtime?: RuntimeSnapshot;
+  readonly usage?: SessionUsageSnapshot;
   readonly activeSlashCommand?: ComposerSlashCommand;
   readonly activeSlashCommandMeta?: string;
   readonly composerDraft: string;
   readonly setComposerDraft: Dispatch<SetStateAction<string>>;
   readonly composerRef: RefObject<HTMLTextAreaElement | null>;
-  readonly runningLabel: string;
   readonly attachments: readonly ComposerAttachment[];
   readonly queuedMessages: readonly QueuedComposerMessage[];
   readonly editingQueuedMessageId?: string;
@@ -88,12 +90,12 @@ export function ComposerPanel({
   selectedSession,
   lastError,
   runtime,
+  usage,
   activeSlashCommand,
   activeSlashCommandMeta,
   composerDraft,
   setComposerDraft,
   composerRef,
-  runningLabel,
   attachments,
   queuedMessages,
   editingQueuedMessageId,
@@ -200,6 +202,7 @@ export function ComposerPanel({
                     onSetModel={onSetModel}
                     onSetThinking={onSetThinking}
                   />
+                  <ContextMeter usage={usage} />
                 </div>
                 <div className="composer__actions">
                   <button
@@ -226,11 +229,6 @@ export function ComposerPanel({
                   </button>
                 </div>
               </div>
-              {selectedSession.status === "running" ? (
-                <div className="composer__hint">
-                  {runningLabel} · Enter to queue · Cmd+Enter to steer
-                </div>
-              ) : null}
             </div>
           }
         />
