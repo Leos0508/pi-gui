@@ -72,12 +72,19 @@ export function ConversationTimeline({
   const annotationList = annotations?.list;
   const markersByMessage = useMemo(() => {
     const markers = new Map<string, AnnotationMarker[]>();
-    annotationList?.forEach(({ id, messageId, start, end }, index) => {
-      const entry = { id, number: index + 1, start, end };
-      markers.set(messageId, [...(markers.get(messageId) ?? []), entry]);
-    });
+    if (!annotationList?.length) return markers;
+    // A row keeps its live id after it is saved, and a reload shows it by its saved id.
+    for (const item of transcript) {
+      if (item.kind !== "message") continue;
+      annotationList.forEach(({ id, messageIds, start, end, anchorText }, index) => {
+        if (!messageIds.includes(item.id) && !messageIds.includes(item.sourceMessageId ?? item.id))
+          return;
+        const entry = { id, number: index + 1, start, end, anchorText };
+        markers.set(item.id, [...(markers.get(item.id) ?? []), entry]);
+      });
+    }
     return markers;
-  }, [annotationList]);
+  }, [annotationList, transcript]);
   const [expandedToolCallIds, setExpandedToolCallIds] = useState<Set<string>>(() => new Set());
   const toggleToolCall = useCallback(
     (id: string) =>
@@ -314,6 +321,7 @@ function MeasuredTimelineItemBase({
       className={className}
       ref={rowRef}
       data-message-id={item.id}
+      data-source-message-id={item.kind === "message" ? item.sourceMessageId : undefined}
       style={top == null ? undefined : { transform: `translateY(${top}px)` }}
     >
       <TimelineItem

@@ -1,11 +1,13 @@
 /** A note the user attached to a span of one transcript message, waiting in the composer. */
 export interface TranscriptAnnotation {
   readonly id: string;
-  /** Timeline id of the annotated message. */
-  readonly messageId: string;
+  /** Timeline ids of the annotated message: its row id, and its saved id once it has one. */
+  readonly messageIds: readonly string[];
   /** Offsets into the message's rendered text (its root element's textContent). */
   readonly start: number;
   readonly end: number;
+  /** The text at those offsets when selected, to find it again if the markdown reflows. */
+  readonly anchorText: string;
   /** The selected text as the user saw it, with line breaks. */
   readonly quote: string;
   /** Optional; empty when the user added the quote without a comment. */

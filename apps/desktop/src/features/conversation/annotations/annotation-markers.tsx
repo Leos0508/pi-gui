@@ -1,11 +1,45 @@
 import { useLayoutEffect, useState, type RefObject } from "react";
 import { offsetsToRange } from "./text-offsets";
 
+/**
+ * The marker's span now. Streaming can re-render earlier markdown (a line becoming a table
+ * or heading) and shift offsets, so this finds the selected text again nearest its old
+ * place, and gives up rather than mark the wrong text.
+ */
+function locate(root: Element, marker: AnnotationMarker): Range | null {
+  const range = offsetsToRange(root, marker.start, marker.end);
+  if (range?.toString() === marker.anchorText) return range;
+  const text = root.textContent ?? "";
+  let best = -1;
+  for (
+    let at = text.indexOf(marker.anchorText);
+    at >= 0;
+    at = text.indexOf(marker.anchorText, at + 1)
+  ) {
+    if (best < 0 || Math.abs(at - marker.start) < Math.abs(best - marker.start)) best = at;
+  }
+  return best < 0 ? null : offsetsToRange(root, best, best + marker.anchorText.length);
+}
+
+function samePlacement(a: readonly PlacedMarker[], b: readonly PlacedMarker[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every(
+      (marker, index) =>
+        marker.id === b[index]?.id &&
+        marker.number === b[index]?.number &&
+        marker.top === b[index]?.top &&
+        marker.left === b[index]?.left,
+    )
+  );
+}
+
 export interface AnnotationMarker {
   readonly id: string;
   readonly number: number;
   readonly start: number;
   readonly end: number;
+  readonly anchorText: string;
 }
 
 export type OpenAnnotation = (id: string, anchor: DOMRect) => void;
@@ -57,7 +91,7 @@ export function AnnotationMarkers({
       const ranges: Range[] = [];
       const next: PlacedMarker[] = [];
       for (const marker of markers) {
-        const range = offsetsToRange(root, marker.start, marker.end);
+        const range = locate(root, marker);
         const rects = range?.getClientRects();
         const last = rects?.[rects.length - 1];
         if (!range || !last) continue;
@@ -66,7 +100,7 @@ export function AnnotationMarkers({
       }
       rangesByMessage.set(messageId, ranges);
       publishHighlights();
-      setPlaced(next);
+      setPlaced((current) => (samePlacement(current, next) ? current : next));
     };
 
     place();

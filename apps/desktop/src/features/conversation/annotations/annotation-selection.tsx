@@ -5,11 +5,25 @@ import { rangeToOffsets } from "./text-offsets";
 import type { TranscriptAnnotations } from "./use-transcript-annotations";
 
 interface TranscriptSelection {
-  readonly messageId: string;
+  readonly messageIds: readonly string[];
   readonly start: number;
   readonly end: number;
+  readonly anchorText: string;
   readonly quote: string;
   readonly rect: DOMRect;
+}
+
+function isSameSelection(a: TranscriptSelection | null, b: TranscriptSelection | null): boolean {
+  return (
+    a === b ||
+    (a !== null &&
+      b !== null &&
+      a.messageIds[0] === b.messageIds[0] &&
+      a.start === b.start &&
+      a.end === b.end &&
+      a.rect.top === b.rect.top &&
+      a.rect.left === b.rect.left)
+  );
 }
 
 interface OpenEditor {
@@ -31,20 +45,45 @@ function isAddToChatShortcut(event: KeyboardEvent, platform: NodeJS.Platform): b
   );
 }
 
-/** A non-empty selection inside one message's text in this timeline pane. */
+function elementOf(node: Node): Element | null {
+  return node instanceof Element ? node : node.parentElement;
+}
+
+/** A non-empty selection that starts in one message's text in this timeline pane. */
 function readTranscriptSelection(pane: HTMLElement): TranscriptSelection | null {
   const selection = window.getSelection();
   if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return null;
-  const range = selection.getRangeAt(0);
-  const container = range.commonAncestorContainer;
-  const element = container instanceof Element ? container : container.parentElement;
-  const root = element?.closest(`[${ANNOTATION_ROOT_ATTRIBUTE}]`);
-  const messageId = root?.closest<HTMLElement>("[data-message-id]")?.dataset.messageId;
+  let range = selection.getRangeAt(0);
+  const root = elementOf(range.startContainer)?.closest(`[${ANNOTATION_ROOT_ATTRIBUTE}]`);
+  const row = root?.closest<HTMLElement>("[data-message-id]");
+  const messageId = row?.dataset.messageId;
   if (!root || !messageId || !pane.contains(root)) return null;
-  const quote = selection.toString().trim();
+  // A triple-click on a message's last paragraph ends just past its text; keep the part inside.
+  const clamped = !root.contains(range.endContainer);
+  if (clamped) {
+    range = range.cloneRange();
+    range.setEnd(root, root.childNodes.length);
+  }
+  const quote = (clamped ? range.toString() : selection.toString()).trim();
   if (!quote) return null;
   const { start, end } = rangeToOffsets(root, range);
-  return { messageId, start, end, quote, rect: range.getBoundingClientRect() };
+  const sourceMessageId = row.dataset.sourceMessageId;
+  return {
+    messageIds: sourceMessageId ? [messageId, sourceMessageId] : [messageId],
+    start,
+    end,
+    anchorText: range.toString(),
+    quote,
+    rect: range.getBoundingClientRect(),
+  };
+}
+
+function isTextEntry(element: Element | null): boolean {
+  return (
+    element instanceof HTMLInputElement ||
+    element instanceof HTMLTextAreaElement ||
+    (element instanceof HTMLElement && element.isContentEditable)
+  );
 }
 
 const POPOVER_GAP = 8;
@@ -77,7 +116,11 @@ export function useAnnotationSelection({
         const marker = current
           ? paneRef.current?.querySelector(`[data-annotation-id="${current.id}"]`)
           : null;
-        return current && marker ? { ...current, anchor: marker.getBoundingClientRect() } : current;
+        if (!current || !marker) return current;
+        const anchor = marker.getBoundingClientRect();
+        return anchor.top === current.anchor.top && anchor.left === current.anchor.left
+          ? current
+          : { ...current, anchor };
       }),
     [paneRef],
   );
@@ -86,14 +129,14 @@ export function useAnnotationSelection({
     if (!annotations) return undefined;
     const refresh = () => {
       const pane = paneRef.current;
-      setSelection(pane && !pointerDownRef.current ? readTranscriptSelection(pane) : null);
+      const next = pane && !pointerDownRef.current ? readTranscriptSelection(pane) : null;
+      setSelection((current) => (isSameSelection(current, next) ? current : next));
     };
-    // The comment box follows its marker while the transcript scrolls or streams.
+    // The button and comment box follow the transcript while it scrolls or streams.
     const followMarker = (event: Event) => {
+      if (!(event.target instanceof Node) || !paneRef.current?.contains(event.target)) return;
       refresh();
-      if (event.target instanceof Node && paneRef.current?.contains(event.target)) {
-        snapEditorToMarker();
-      }
+      snapEditorToMarker();
     };
     const onPointerDown = (event: PointerEvent) => {
       if (event.target instanceof Element && event.target.closest(".annotation-popover")) return;
@@ -120,9 +163,10 @@ export function useAnnotationSelection({
   const addSelection = useCallback(() => {
     if (!annotations || !selection) return;
     const id = annotations.add({
-      messageId: selection.messageId,
+      messageIds: selection.messageIds,
       start: selection.start,
       end: selection.end,
+      anchorText: selection.anchorText,
       quote: selection.quote,
     });
     window.getSelection()?.removeAllRanges();
@@ -133,7 +177,11 @@ export function useAnnotationSelection({
   useEffect(() => {
     if (!selection) return undefined;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!isAddToChatShortcut(event, platform) || event.repeat) return;
+      if (!isAddToChatShortcut(event, platform) || event.repeat || event.defaultPrevented) return;
+      // Typing elsewhere (composer, terminal, search) keeps its own Ctrl+L.
+      const active = document.activeElement;
+      if (isTextEntry(active) && !active?.closest(".annotation-popover")) return;
+      if (active?.closest("[data-pi-terminal]")) return;
       event.preventDefault();
       addSelection();
     };
@@ -155,6 +203,10 @@ export function useAnnotationSelection({
   }, []);
 
   const editing = editor ? annotations?.list.find((entry) => entry.id === editor.id) : undefined;
+  const editorOrphaned = editor !== null && !editing;
+  useEffect(() => {
+    if (editorOrphaned) setEditor(null);
+  }, [editorOrphaned]);
   const layer = (
     <>
       {selection && !editor ? (
@@ -227,9 +279,15 @@ function AnnotationEditor({
   const [value, setValue] = useState(note);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const closingRef = useRef(false);
+  const pendingSaveRef = useRef(() => onSave(value.trim()));
+  pendingSaveRef.current = () => onSave(value.trim());
 
   useEffect(() => {
     inputRef.current?.focus();
+    // Opening another marker replaces this box without a blur; keep what was typed.
+    return () => {
+      if (!closingRef.current) pendingSaveRef.current();
+    };
   }, []);
 
   const finish = (save: boolean) => {

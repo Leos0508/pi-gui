@@ -94,8 +94,16 @@ test("adds transcript selections to chat with comments and sends them before the
           PiSdkDriver: typeof PiSdkDriver;
         };
         const sent: SessionMessageInput[] = [];
-        (globalThis as { __annotationSends?: SessionMessageInput[] }).__annotationSends = sent;
+        const hooks = globalThis as {
+          __annotationSends?: SessionMessageInput[];
+          __failNextAnnotationSend?: boolean;
+        };
+        hooks.__annotationSends = sent;
         Driver.prototype.sendUserMessage = async function (_ref, message) {
+          if (hooks.__failNextAnnotationSend) {
+            hooks.__failNextAnnotationSend = false;
+            throw new Error("Simulated send failure");
+          }
           sent.push(message);
         };
       },
@@ -135,15 +143,27 @@ test("adds transcript selections to chat with comments and sends them before the
     await expect(page.getByTestId("annotation-editor").getByRole("textbox")).toHaveValue(
       "Why not?",
     );
+    // Switching straight to another marker keeps what was typed in the first.
     await page.getByTestId("annotation-editor").getByRole("textbox").fill("Why not wait?");
-    await page.getByTestId("annotation-editor").getByRole("textbox").press("Enter");
     await page.getByTestId("annotation-marker").nth(1).click();
+    await expect(page.getByTestId("annotation-editor").getByRole("textbox")).toHaveValue("");
+    await expect(popover).toContainText("Why not wait?");
     await page.getByTestId("annotation-remove").click();
     await expect(page.getByTestId("annotation-marker")).toHaveText(["1"]);
     await expect(chip).toContainText("1 annotation");
 
-    // Sending puts the annotation before the typed text and clears the markers.
+    // A failed send gives back the typed text and the annotation, not the formatted blocks.
+    await harness.electronApp.evaluate(() => {
+      (globalThis as { __failNextAnnotationSend?: boolean }).__failNextAnnotationSend = true;
+    });
     await page.getByTestId("composer").fill("Thanks, one more thing.");
+    await page.getByTestId("send").click();
+    await expect(page.getByTestId("composer-error-banner")).toContainText("Simulated send failure");
+    await expect(page.getByTestId("composer")).toHaveValue("Thanks, one more thing.");
+    await expect(chip).toContainText("1 annotation");
+    await expect(page.getByTestId("annotation-marker")).toHaveText(["1"]);
+
+    // Sending puts the annotation before the typed text and clears the markers.
     await page.getByTestId("send").click();
     await expect
       .poll(() =>

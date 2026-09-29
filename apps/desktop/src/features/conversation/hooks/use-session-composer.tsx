@@ -21,7 +21,7 @@ import {
   readComposerAttachmentsFromFiles,
 } from "../composer-attachments";
 import { parseTreeComposerCommand } from "../composer-commands";
-import { formatAnnotatedPrompt } from "../annotations/annotation-prompt";
+import { formatAnnotatedPrompt, parseAnnotatedPrompt } from "../annotations/annotation-prompt";
 import type { TranscriptAnnotations } from "../annotations/use-transcript-annotations";
 import type { PiDesktopApi } from "../../../../contracts/ipc";
 
@@ -134,10 +134,14 @@ export function useSessionComposer(params: UseSessionComposerParams) {
             : undefined,
         ),
       );
+      // A failed send hands the text back as the draft; give back the annotations and the
+      // typed text rather than their formatted blocks.
+      const returnedToComposer = sentAnnotations?.taken.length && nextState.composerDraft === text;
+      if (returnedToComposer) sentAnnotations.undo();
       // Only apply the resolved draft if the user hasn't typed into the composer during the
       // in-flight submit; otherwise their new input would be clobbered.
       if (composerDraftRef.current === "") {
-        setComposerDraft(nextState.composerDraft);
+        setComposerDraft(returnedToComposer ? previousDraft : nextState.composerDraft);
       }
       setAttachmentsClearedOnSubmit(false);
     })().catch(() => {
@@ -177,7 +181,13 @@ export function useSessionComposer(params: UseSessionComposerParams) {
     }
     flushComposerDraft();
     void updateSnapshot(setSnapshot, () => api.editQueuedComposerMessage(messageId, composerDraft))
-      .then(() => {
+      .then((nextState) => {
+        // A queued message sent with annotations comes back as its chip, not its raw blocks.
+        const annotated = parseAnnotatedPrompt(nextState.composerDraft);
+        if (annotated) {
+          annotations.restoreSent(annotated.annotations);
+          setComposerDraft(annotated.body);
+        }
         composerRef.current?.focus();
       })
       .catch((error: unknown) => {

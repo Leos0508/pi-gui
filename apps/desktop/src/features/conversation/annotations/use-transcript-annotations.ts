@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import type { TranscriptAnnotation } from "./annotation-prompt";
+import type { SentAnnotation, TranscriptAnnotation } from "./annotation-prompt";
 
 export interface TranscriptAnnotations {
   /** The selected thread's annotations, in the order they were added (marker numbers). */
@@ -7,6 +7,8 @@ export interface TranscriptAnnotations {
   readonly add: (input: Omit<TranscriptAnnotation, "id" | "note">) => string;
   readonly setNote: (id: string, note: string) => void;
   readonly remove: (id: string) => void;
+  /** Puts annotations read back from a queued message into the composer, without markers. */
+  readonly restoreSent: (sent: readonly SentAnnotation[]) => void;
   /** Clears the thread's annotations for a send; the returned undo puts them back. */
   readonly take: () => {
     readonly taken: readonly TranscriptAnnotation[];
@@ -16,6 +18,10 @@ export interface TranscriptAnnotations {
 
 const NONE: readonly TranscriptAnnotation[] = [];
 let nextAnnotationId = 0;
+function newAnnotationId(): string {
+  nextAnnotationId += 1;
+  return `annotation-${nextAnnotationId}`;
+}
 
 /**
  * Annotations belong to a thread's composer, like its draft, so switching threads keeps
@@ -45,11 +51,26 @@ export function useTranscriptAnnotations(sessionKey: string): TranscriptAnnotati
 
   const add = useCallback(
     (input: Omit<TranscriptAnnotation, "id" | "note">) => {
-      nextAnnotationId += 1;
-      const id = `annotation-${nextAnnotationId}`;
+      const id = newAnnotationId();
       update(sessionKey, (current) => [...current, { ...input, id, note: "" }]);
       return id;
     },
+    [sessionKey, update],
+  );
+  const restoreSent = useCallback(
+    (sent: readonly SentAnnotation[]) =>
+      update(sessionKey, (current) => [
+        ...current,
+        ...sent.map(({ quote, note }) => ({
+          id: newAnnotationId(),
+          messageIds: [],
+          start: 0,
+          end: 0,
+          anchorText: "",
+          quote,
+          note,
+        })),
+      ]),
     [sessionKey, update],
   );
   const setNote = useCallback(
@@ -73,5 +94,8 @@ export function useTranscriptAnnotations(sessionKey: string): TranscriptAnnotati
     };
   }, [list, sessionKey, update]);
 
-  return useMemo(() => ({ list, add, setNote, remove, take }), [list, add, setNote, remove, take]);
+  return useMemo(
+    () => ({ list, add, setNote, remove, restoreSent, take }),
+    [list, add, setNote, remove, restoreSent, take],
+  );
 }
