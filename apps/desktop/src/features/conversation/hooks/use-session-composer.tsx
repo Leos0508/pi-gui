@@ -21,6 +21,8 @@ import {
   readComposerAttachmentsFromFiles,
 } from "../composer-attachments";
 import { parseTreeComposerCommand } from "../composer-commands";
+import { formatAnnotatedPrompt } from "../annotations/annotation-prompt";
+import type { TranscriptAnnotations } from "../annotations/use-transcript-annotations";
 import type { PiDesktopApi } from "../../../../contracts/ipc";
 
 interface UseSessionComposerParams {
@@ -41,6 +43,7 @@ interface UseSessionComposerParams {
   readonly newThreadComposerRef: MutableRefObject<HTMLTextAreaElement | null>;
   readonly appendNewThreadAttachment: (attachment: ComposerImageAttachment) => void;
   readonly onNewThreadComposerError: (message: string) => void;
+  readonly annotations: TranscriptAnnotations;
 }
 
 export function useSessionComposer(params: UseSessionComposerParams) {
@@ -61,6 +64,7 @@ export function useSessionComposer(params: UseSessionComposerParams) {
     newThreadComposerRef,
     appendNewThreadAttachment,
     onNewThreadComposerError,
+    annotations,
   } = params;
 
   const [attachmentsClearedOnSubmit, setAttachmentsClearedOnSubmit] = useState(false);
@@ -80,7 +84,10 @@ export function useSessionComposer(params: UseSessionComposerParams) {
       return;
     }
 
-    const hasComposerInput = composerDraft.trim().length > 0 || composerAttachments.length > 0;
+    const hasComposerInput =
+      composerDraft.trim().length > 0 ||
+      composerAttachments.length > 0 ||
+      annotations.list.length > 0;
     if (selectedSession.status === "running" && !hasComposerInput) {
       stopCurrentRun();
       return;
@@ -111,12 +118,17 @@ export function useSessionComposer(params: UseSessionComposerParams) {
     }
 
     const previousDraft = composerDraft;
+    // A slash command keeps its annotations for the next message rather than breaking the command.
+    const sentAnnotations = composerDraft.trimStart().startsWith("/") ? null : annotations.take();
+    const text = sentAnnotations?.taken.length
+      ? formatAnnotatedPrompt(sentAnnotations.taken, previousDraft)
+      : previousDraft;
     setComposerDraft("");
     setAttachmentsClearedOnSubmit(true);
     void (async () => {
       const nextState = await updateSnapshot(setSnapshot, () =>
         api.submitComposer(
-          previousDraft,
+          text,
           selectedSession.status === "running"
             ? { deliverAs: options.deliverAs ?? "followUp" }
             : undefined,
@@ -132,6 +144,7 @@ export function useSessionComposer(params: UseSessionComposerParams) {
       if (composerDraftRef.current === "") {
         setComposerDraft(previousDraft);
       }
+      sentAnnotations?.undo();
       setAttachmentsClearedOnSubmit(false);
     });
   };
@@ -349,7 +362,11 @@ export function useSessionComposer(params: UseSessionComposerParams) {
     }
 
     event.preventDefault();
-    if (!composerDraft.trim() && composerAttachments.length === 0) {
+    if (
+      !composerDraft.trim() &&
+      composerAttachments.length === 0 &&
+      annotations.list.length === 0
+    ) {
       return;
     }
     if (requiresModelSelection) {

@@ -11,6 +11,9 @@ import type { TranscriptMessage } from "../../../contracts/desktop-state";
 import type { DisplayTimelineItem } from "../../../contracts/timeline-types";
 import type { ScheduledTaskOrigin } from "../../../contracts/scheduled-tasks";
 import type { TimelineViewport } from "./hooks/use-timeline-viewport";
+import type { AnnotationMarker, OpenAnnotation } from "./annotations/annotation-markers";
+import { useAnnotationSelection } from "./annotations/annotation-selection";
+import type { TranscriptAnnotations } from "./annotations/use-transcript-annotations";
 import { ThreadSearchBar } from "./thread-search";
 import { TimelineItem } from "./timeline-item";
 import type { OpenTurnChange } from "./turn-changes-card";
@@ -40,7 +43,10 @@ interface ConversationTimelineProps {
   readonly onOpenWorkspaceFileLine?: (target: WorkspaceFileLine) => void;
   readonly scheduledOrigins?: ReadonlyMap<string, ScheduledTaskOrigin>;
   readonly workspacePath?: string;
+  readonly annotations?: TranscriptAnnotations;
+  readonly platform: NodeJS.Platform;
 }
+const NO_MARKERS: readonly AnnotationMarker[] = [];
 export function ConversationTimeline({
   transcript,
   isTranscriptLoading,
@@ -54,7 +60,24 @@ export function ConversationTimeline({
   onOpenWorkspaceFileLine,
   scheduledOrigins,
   workspacePath,
+  annotations,
+  platform,
 }: ConversationTimelineProps) {
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const annotationSelection = useAnnotationSelection({
+    paneRef: surfaceRef,
+    annotations,
+    platform,
+  });
+  const annotationList = annotations?.list;
+  const markersByMessage = useMemo(() => {
+    const markers = new Map<string, AnnotationMarker[]>();
+    annotationList?.forEach(({ id, messageId, start, end }, index) => {
+      const entry = { id, number: index + 1, start, end };
+      markers.set(messageId, [...(markers.get(messageId) ?? []), entry]);
+    });
+    return markers;
+  }, [annotationList]);
   const [expandedToolCallIds, setExpandedToolCallIds] = useState<Set<string>>(() => new Set());
   const toggleToolCall = useCallback(
     (id: string) =>
@@ -82,7 +105,7 @@ export function ConversationTimeline({
     return indices;
   }, [transcript]);
   return (
-    <div className="timeline-surface">
+    <div className="timeline-surface" ref={surfaceRef}>
       <div className="timeline-column">
         {threadSearch.isOpen ? (
           <ThreadSearchBar
@@ -139,6 +162,8 @@ export function ConversationTimeline({
                   onForkFromMessage={onForkFromMessage}
                   onOpenWorkspaceFileLine={onOpenWorkspaceFileLine}
                   workspacePath={workspacePath}
+                  annotationMarkers={markersByMessage.get(item.id) ?? NO_MARKERS}
+                  onOpenAnnotation={annotationSelection.openAnnotation}
                   scheduledOrigin={
                     item.kind === "message" ? scheduledOrigins?.get(item.id) : undefined
                   }
@@ -158,6 +183,7 @@ export function ConversationTimeline({
           ) : null}
         </div>
       </div>
+      {annotationSelection.layer}
     </div>
   );
 }
@@ -238,6 +264,8 @@ interface MeasuredTimelineItemProps {
   readonly onOpenWorkspaceFileLine?: (target: WorkspaceFileLine) => void;
   readonly scheduledOrigin?: ScheduledTaskOrigin;
   readonly workspacePath?: string;
+  readonly annotationMarkers: readonly AnnotationMarker[];
+  readonly onOpenAnnotation: OpenAnnotation;
 }
 
 function MeasuredTimelineItemBase({
@@ -255,6 +283,8 @@ function MeasuredTimelineItemBase({
   onOpenWorkspaceFileLine,
   scheduledOrigin,
   workspacePath,
+  annotationMarkers,
+  onOpenAnnotation,
 }: MeasuredTimelineItemProps) {
   const rowRef = useRef<HTMLDivElement | null>(null);
 
@@ -297,6 +327,8 @@ function MeasuredTimelineItemBase({
         onOpenWorkspaceFileLine={onOpenWorkspaceFileLine}
         scheduledOrigin={scheduledOrigin}
         workspacePath={workspacePath}
+        annotationMarkers={annotationMarkers}
+        onOpenAnnotation={onOpenAnnotation}
       />
     </div>
   );
@@ -371,6 +403,8 @@ function areMeasuredTimelineItemPropsEqual(
     prev.onForkFromMessage === next.onForkFromMessage &&
     prev.onOpenWorkspaceFileLine === next.onOpenWorkspaceFileLine &&
     prev.workspacePath === next.workspacePath &&
+    prev.annotationMarkers === next.annotationMarkers &&
+    prev.onOpenAnnotation === next.onOpenAnnotation &&
     prev.scheduledOrigin?.taskId === next.scheduledOrigin?.taskId
   );
 }
