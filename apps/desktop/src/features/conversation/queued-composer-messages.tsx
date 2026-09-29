@@ -58,9 +58,12 @@ export function QueuedComposerMessages({
                   Steer
                 </button>
               ) : null}
-              <button type="button" onClick={() => onEditMessage(message.id)}>
-                Edit
-              </button>
+              {/* Its annotations cannot be reattached to the transcript, so it is not editable. */}
+              {parseAnnotatedPrompt(message.text) ? null : (
+                <button type="button" onClick={() => onEditMessage(message.id)}>
+                  Edit
+                </button>
+              )}
               <button
                 aria-label={`Delete queued message ${message.text || message.id}`}
                 type="button"

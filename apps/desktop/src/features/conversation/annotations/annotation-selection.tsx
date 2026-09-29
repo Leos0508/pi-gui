@@ -58,7 +58,10 @@ function readTranscriptSelection(pane: HTMLElement): TranscriptSelection | null 
   const row = root?.closest<HTMLElement>("[data-message-id]");
   const messageId = row?.dataset.messageId;
   if (!root || !messageId || !pane.contains(root)) return null;
-  // A triple-click on a message's last paragraph ends just past its text; keep the part inside.
+  // A triple-click on a message's last paragraph ends just past its text; keep the part
+  // inside. A drag on into another message is not one selection.
+  const endRoot = elementOf(range.endContainer)?.closest(`[${ANNOTATION_ROOT_ATTRIBUTE}]`);
+  if (endRoot && endRoot !== root) return null;
   const clamped = !root.contains(range.endContainer);
   if (clamped) {
     range = range.cloneRange();
@@ -69,7 +72,8 @@ function readTranscriptSelection(pane: HTMLElement): TranscriptSelection | null 
   const { start, end } = rangeToOffsets(root, range);
   const sourceMessageId = row.dataset.sourceMessageId;
   return {
-    messageIds: sourceMessageId ? [messageId, sourceMessageId] : [messageId],
+    messageIds:
+      sourceMessageId && sourceMessageId !== messageId ? [messageId, sourceMessageId] : [messageId],
     start,
     end,
     anchorText: range.toString(),

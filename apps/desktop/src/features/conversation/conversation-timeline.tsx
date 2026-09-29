@@ -70,21 +70,18 @@ export function ConversationTimeline({
     platform,
   });
   const annotationList = annotations?.list;
+  // Keyed by every id an annotation knows its message by: a row keeps its live id after it
+  // is saved, and a reload shows it by its saved id.
   const markersByMessage = useMemo(() => {
     const markers = new Map<string, AnnotationMarker[]>();
-    if (!annotationList?.length) return markers;
-    // A row keeps its live id after it is saved, and a reload shows it by its saved id.
-    for (const item of transcript) {
-      if (item.kind !== "message") continue;
-      annotationList.forEach(({ id, messageIds, start, end, anchorText }, index) => {
-        if (!messageIds.includes(item.id) && !messageIds.includes(item.sourceMessageId ?? item.id))
-          return;
-        const entry = { id, number: index + 1, start, end, anchorText };
-        markers.set(item.id, [...(markers.get(item.id) ?? []), entry]);
-      });
-    }
+    annotationList?.forEach(({ id, messageIds, start, end, anchorText }, index) => {
+      const entry = { id, number: index + 1, start, end, anchorText };
+      for (const messageId of messageIds) {
+        markers.set(messageId, [...(markers.get(messageId) ?? []), entry]);
+      }
+    });
     return markers;
-  }, [annotationList, transcript]);
+  }, [annotationList]);
   const [expandedToolCallIds, setExpandedToolCallIds] = useState<Set<string>>(() => new Set());
   const toggleToolCall = useCallback(
     (id: string) =>
@@ -169,7 +166,13 @@ export function ConversationTimeline({
                   onForkFromMessage={onForkFromMessage}
                   onOpenWorkspaceFileLine={onOpenWorkspaceFileLine}
                   workspacePath={workspacePath}
-                  annotationMarkers={markersByMessage.get(item.id) ?? NO_MARKERS}
+                  annotationMarkers={
+                    markersByMessage.get(item.id) ??
+                    (item.kind === "message" && item.sourceMessageId
+                      ? markersByMessage.get(item.sourceMessageId)
+                      : undefined) ??
+                    NO_MARKERS
+                  }
                   onOpenAnnotation={annotationSelection.openAnnotation}
                   scheduledOrigin={
                     item.kind === "message" ? scheduledOrigins?.get(item.id) : undefined

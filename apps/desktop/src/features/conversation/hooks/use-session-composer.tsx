@@ -21,7 +21,7 @@ import {
   readComposerAttachmentsFromFiles,
 } from "../composer-attachments";
 import { parseTreeComposerCommand } from "../composer-commands";
-import { formatAnnotatedPrompt, parseAnnotatedPrompt } from "../annotations/annotation-prompt";
+import { formatAnnotatedPrompt } from "../annotations/annotation-prompt";
 import type { TranscriptAnnotations } from "../annotations/use-transcript-annotations";
 import type { PiDesktopApi } from "../../../../contracts/ipc";
 
@@ -181,13 +181,7 @@ export function useSessionComposer(params: UseSessionComposerParams) {
     }
     flushComposerDraft();
     void updateSnapshot(setSnapshot, () => api.editQueuedComposerMessage(messageId, composerDraft))
-      .then((nextState) => {
-        // A queued message sent with annotations comes back as its chip, not its raw blocks.
-        const annotated = parseAnnotatedPrompt(nextState.composerDraft);
-        if (annotated) {
-          annotations.restoreSent(annotated.annotations);
-          setComposerDraft(annotated.body);
-        }
+      .then(() => {
         composerRef.current?.focus();
       })
       .catch((error: unknown) => {
