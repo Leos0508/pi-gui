@@ -129,6 +129,8 @@ export interface CreateSessionOptions {
   readonly title?: string;
   readonly initialModel?: SessionModelSelection;
   readonly initialThinkingLevel?: string;
+  /** Prototype: values for flags extensions registered, applied when the pi session starts. */
+  readonly extensionFlagValues?: Readonly<Record<string, boolean | string>>;
 }
 
 export type ForkPosition = "before" | "at" | "after";

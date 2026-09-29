@@ -675,6 +675,9 @@ export class SessionSupervisor {
             >,
           }
         : {}),
+      ...(options?.extensionFlagValues && Object.keys(options.extensionFlagValues).length > 0
+        ? { extensionFlagValues: new Map(Object.entries(options.extensionFlagValues)) }
+        : {}),
     };
 
     const runtime = await this.createAgentSessionRuntimeImpl(createOptions);

@@ -286,6 +286,8 @@ export type StartThreadInput = {
   readonly provider?: string;
   readonly modelId?: string;
   readonly thinkingLevel?: string;
+  /** Prototype: extension flag values for this thread's pi session. */
+  readonly extensionFlags?: Readonly<Record<string, boolean | string>>;
 };
 
 export type ForkThreadPosition = "before" | "at" | "after";

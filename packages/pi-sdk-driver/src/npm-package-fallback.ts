@@ -21,6 +21,8 @@ export type PiModelInfo = NonNullable<CreateAgentSessionOptions["model"]>;
 
 export interface PiCreateAgentSessionOptions extends CreateAgentSessionOptions {
   readonly resourceLoaderOptions?: PiResourceLoaderOptions;
+  /** Prototype: values for flags extensions registered, applied once the services load them. */
+  readonly extensionFlagValues?: Map<string, boolean | string>;
   /**
    * Pick the initial model against the cwd-bound runtime the services just built.
    *
@@ -74,7 +76,7 @@ async function createAgentSessionServicesWithNpmFallback(
   agentDir: string,
   options?: Pick<
     PiCreateAgentSessionOptions,
-    "settingsManager" | "modelRuntime" | "resourceLoaderOptions"
+    "settingsManager" | "modelRuntime" | "resourceLoaderOptions" | "extensionFlagValues"
   >,
 ) {
   try {
@@ -86,6 +88,7 @@ async function createAgentSessionServicesWithNpmFallback(
       ...(options?.resourceLoaderOptions
         ? { resourceLoaderOptions: options.resourceLoaderOptions }
         : {}),
+      ...(options?.extensionFlagValues ? { extensionFlagValues: options.extensionFlagValues } : {}),
     });
   } catch (error) {
     if (!isGlobalNpmLookupError(error)) {
@@ -113,6 +116,7 @@ async function createAgentSessionServicesWithNpmFallback(
       ...(options?.resourceLoaderOptions
         ? { resourceLoaderOptions: options.resourceLoaderOptions }
         : {}),
+      ...(options?.extensionFlagValues ? { extensionFlagValues: options.extensionFlagValues } : {}),
     });
   }
 }

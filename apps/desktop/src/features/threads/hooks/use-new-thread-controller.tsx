@@ -68,7 +68,16 @@ export function useNewThreadController(params: UseNewThreadControllerParams) {
   const [provider, setProvider] = useState<string | undefined>();
   const [modelId, setModelId] = useState<string | undefined>();
   const [thinkingLevel, setThinkingLevel] = useState<string | undefined>();
+  const [extensionFlags, setExtensionFlags] = useState<Readonly<Record<string, boolean | string>>>({});
   const [composerError, setComposerError] = useState<string | undefined>();
+  const setExtensionFlag = useCallback((name: string, value: boolean | string | undefined) => {
+    setExtensionFlags((current) => {
+      const next: Record<string, boolean | string> = { ...current };
+      if (value === undefined || value === false || value === "") delete next[name];
+      else next[name] = value;
+      return next;
+    });
+  }, []);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const previousActiveViewRef = useRef<AppView | null>(null);
   // Set while an in-app open is switching to New thread, so its chosen folder
@@ -297,6 +306,7 @@ export function useNewThreadController(params: UseNewThreadControllerParams) {
       provider: resolvedProvider,
       modelId: resolvedModelId,
       thinkingLevel: resolvedThinkingLevel,
+      ...(Object.keys(extensionFlags).length > 0 ? { extensionFlags } : {}),
     };
     startingGenerationRef.current = generation;
     void updateSnapshot(setSnapshot, () => api.startThread(input))
@@ -306,6 +316,7 @@ export function useNewThreadController(params: UseNewThreadControllerParams) {
         }
         setPrompt("");
         setAttachments([]);
+        setExtensionFlags({});
         setProvider(undefined);
         setModelId(undefined);
         setThinkingLevel(undefined);
@@ -330,6 +341,7 @@ export function useNewThreadController(params: UseNewThreadControllerParams) {
     resolvedThinkingLevel,
     rootWorkspaceId,
     setSnapshot,
+    extensionFlags,
   ]);
 
   const handleComposerPaste = useCallback(
@@ -464,6 +476,8 @@ export function useNewThreadController(params: UseNewThreadControllerParams) {
       resolvedProvider,
       resolvedModelId,
       resolvedThinkingLevel,
+      extensionFlags,
+      setExtensionFlag,
       modelOnboarding,
       slashMenu,
       mentionMenu,
@@ -496,6 +510,8 @@ export function useNewThreadController(params: UseNewThreadControllerParams) {
       resolvedProvider,
       resolvedModelId,
       resolvedThinkingLevel,
+      extensionFlags,
+      setExtensionFlag,
       modelOnboarding,
       slashMenu,
       mentionMenu,
