@@ -254,7 +254,28 @@ export type HostUiResponse =
       readonly cancelled: true;
     };
 
+/**
+ * Tier 1 prototype: a card an extension declares as data and pi-gui draws with its own
+ * components. Written by `pi.appendEntry("pi-gui.card", card)`.
+ */
+export interface ExtensionCard {
+  readonly title: string;
+  readonly subtitle?: string;
+  readonly tone?: "neutral" | "success" | "warning" | "error";
+  readonly rows?: readonly { readonly label: string; readonly value: string }[];
+  readonly actions?: readonly {
+    readonly label: string;
+    readonly path: string;
+    readonly line?: number;
+  }[];
+}
+
 export type HostUiRequest =
+  | {
+      readonly kind: "card";
+      readonly requestId: string;
+      readonly card: ExtensionCard;
+    }
   | {
       readonly kind: "confirm";
       readonly requestId: string;

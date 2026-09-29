@@ -11,6 +11,7 @@ export type {
   HostUiResponse,
   NavigateSessionTreeOptions,
   NavigateSessionTreeResult,
+  ExtensionCard,
   HostUiRequest,
   HostUiRequestEvent,
   RunCompletedEvent,

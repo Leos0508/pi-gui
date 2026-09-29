@@ -26,6 +26,7 @@ import type {
   SessionTreeSnapshot,
 } from "@pi-gui/session-driver/types";
 import type {
+  ExtensionCard,
   CreateSessionOptions,
   ForkSessionOptions,
   ForkSessionResult,
@@ -2308,6 +2309,14 @@ export class SessionSupervisor {
         this.refreshUsage(record);
         return [sessionUpdatedEvent(record)];
       case "entry_appended":
+        // Tier 1 prototype: an extension appended a card declared as data.
+        if (event.entry.type === "custom" && event.entry.customType === "pi-gui.card") {
+          const card = parseExtensionCard(event.entry.data);
+          if (card) {
+            this.emitHostUiRequest(record, { kind: "card", requestId: crypto.randomUUID(), card });
+          }
+          return [];
+        }
         // Cache-warming refreshes land as usage entries. pi announces them
         // before rescheduling the next refresh, so read once it has.
         if (event.entry.type !== "usage") return [];
@@ -3208,4 +3217,42 @@ function toDriverEvents(
   const id = runId ?? record.runningRunId;
   const event = id ? { ...base, runId: id } : base;
   return [event, sessionUpdatedEvent(record)];
+}
+
+function parseExtensionCard(data: unknown): ExtensionCard | undefined {
+  if (!data || typeof data !== "object") return undefined;
+  const raw = data as Record<string, unknown>;
+  if (typeof raw.title !== "string" || !raw.title.trim()) return undefined;
+  const tone =
+    raw.tone === "success" || raw.tone === "warning" || raw.tone === "error" ? raw.tone : "neutral";
+  const rows = Array.isArray(raw.rows)
+    ? raw.rows.flatMap((row) =>
+        row && typeof row === "object" && typeof (row as any).label === "string"
+          ? [{ label: String((row as any).label), value: String((row as any).value ?? "") }]
+          : [],
+      )
+    : [];
+  const actions = Array.isArray(raw.actions)
+    ? raw.actions.flatMap((action) =>
+        action &&
+        typeof action === "object" &&
+        typeof (action as any).label === "string" &&
+        typeof (action as any).path === "string"
+          ? [
+              {
+                label: String((action as any).label),
+                path: String((action as any).path),
+                ...(typeof (action as any).line === "number" ? { line: (action as any).line } : {}),
+              },
+            ]
+          : [],
+      )
+    : [];
+  return {
+    title: raw.title,
+    ...(typeof raw.subtitle === "string" ? { subtitle: raw.subtitle } : {}),
+    tone,
+    rows,
+    actions,
+  };
 }

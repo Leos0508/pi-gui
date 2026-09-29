@@ -1,5 +1,6 @@
 import type { SessionTranscriptMessage } from "@pi-gui/session-driver";
 import type {
+  TimelineCard,
   DisplayTimelineItem,
   TimelineActivity,
   TimelineToolCall,
@@ -75,6 +76,8 @@ export function TimelineItem({
       );
     case "summary":
       return <TimelineSummaryItem item={item} />;
+    case "card":
+      return <TimelineCardItem item={item} onOpenWorkspaceFileLine={onOpenWorkspaceFileLine} />;
     default:
       return null;
   }
@@ -433,5 +436,59 @@ function TimelineSummaryItem({ item }: { readonly item: TimelineSummary }) {
       <span className="timeline-activity__label">{item.label}</span>
       {item.metadata ? <span className="timeline-activity__meta">{item.metadata}</span> : null}
     </div>
+  );
+}
+
+/** Tier 1 prototype: pi-gui draws an extension's card with its own components. */
+function TimelineCardItem({
+  item,
+  onOpenWorkspaceFileLine,
+}: {
+  readonly item: TimelineCard;
+  readonly onOpenWorkspaceFileLine?: (target: WorkspaceFileLine) => void;
+}) {
+  return (
+    <article
+      className={`timeline-item timeline-item--summary-card timeline-card timeline-card--${item.tone}`}
+      data-testid="extension-card"
+    >
+      <div className="timeline-card__header">
+        <span className="timeline-card__dot" aria-hidden="true" />
+        <span className="timeline-card__title">{item.title}</span>
+        {item.metadata ? <span className="timeline-card__meta">{item.metadata}</span> : null}
+      </div>
+      {item.subtitle ? <p className="timeline-card__subtitle">{item.subtitle}</p> : null}
+      {item.rows.length > 0 ? (
+        <dl className="timeline-card__rows">
+          {item.rows.map((row, index) => (
+            <div className="timeline-card__row" key={`${row.label}:${index}`}>
+              <dt>{row.label}</dt>
+              <dd>{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+      {item.actions.length > 0 ? (
+        <div className="timeline-card__actions">
+          {item.actions.map((action, index) => (
+            <button
+              type="button"
+              className="timeline-item__action timeline-card__action"
+              key={`${action.label}:${index}`}
+              disabled={!onOpenWorkspaceFileLine}
+              onClick={() =>
+                onOpenWorkspaceFileLine?.({
+                  path: action.path,
+                  line: action.line ?? 1,
+                  endLine: action.line ?? 1,
+                })
+              }
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </article>
   );
 }

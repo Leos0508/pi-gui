@@ -294,6 +294,20 @@ export function applyTimelineEvent(
       transcript.push(makeActivityItem("Stopped", { metadata: relativeDetail(event.timestamp) }));
       break;
     case "hostUiRequest":
+      if (event.request.kind === "card") {
+        const card = event.request.card;
+        transcript.push({
+          kind: "card",
+          id: `card:${event.request.requestId}`,
+          createdAt: event.timestamp,
+          title: card.title,
+          ...(card.subtitle ? { subtitle: card.subtitle } : {}),
+          tone: card.tone ?? "neutral",
+          rows: card.rows ?? [],
+          actions: card.actions ?? [],
+          metadata: relativeDetail(event.timestamp),
+        });
+      }
       if (event.request.kind === "notify") {
         transcript.push(
           makeActivityItem(event.request.message, { metadata: relativeDetail(event.timestamp) }),
