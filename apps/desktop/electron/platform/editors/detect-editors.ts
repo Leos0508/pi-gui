@@ -1,7 +1,7 @@
 import { accessSync, constants, existsSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
-import { EDITOR_CATALOG, type EditorDefinition } from "./editor-catalog";
+import { EDITOR_CATALOG, type EditorDefinition, type WindowsInstallRoot } from "./editor-catalog";
 
 export type DetectedEditorLaunch =
   | { readonly kind: "mac-app"; readonly appPath: string }
@@ -119,6 +119,16 @@ function detectLinuxEditors(host: EditorDetectionHost): readonly DetectedEditor[
   const gtkLaunch = resolvePosixCommand(host, "gtk-launch");
   const detected: DetectedEditor[] = [];
   for (const definition of EDITOR_CATALOG) {
+    // A PATH executable is more reliable than a desktop entry: entries such as
+    // Android Studio ship an `Exec=` line without a `%f` field code, and
+    // gtk-launch then cannot forward the checkout path.
+    const commandPath = (definition.posixCommands ?? [])
+      .map((command) => resolvePosixCommand(host, command))
+      .find((candidate): candidate is string => Boolean(candidate));
+    if (commandPath) {
+      detected.push(toDetectedEditor(definition, { kind: "command", commandPath }));
+      continue;
+    }
     const desktopId = definition.linuxDesktopIds?.find((id) => available.has(id));
     if (!desktopId) {
       continue;
@@ -142,16 +152,14 @@ function detectLinuxEditors(host: EditorDetectionHost): readonly DetectedEditor[
 
 function detectWindowsEditors(host: EditorDetectionHost): readonly DetectedEditor[] {
   const pathApi = path.win32;
-  const programsDirectory = host.env.LOCALAPPDATA
-    ? pathApi.join(host.env.LOCALAPPDATA, "Programs")
-    : undefined;
   const detected: DetectedEditor[] = [];
   for (const definition of EDITOR_CATALOG) {
     const installed = (definition.windowsInstalls ?? [])
-      .map((install) =>
-        pathApi.join(programsDirectory ?? "", install.directory, install.executable),
-      )
-      .find((candidate) => programsDirectory && host.exists(candidate));
+      .map((install) => {
+        const root = resolveWindowsInstallRoot(host, install.root);
+        return root ? pathApi.join(root, install.directory, install.executable) : undefined;
+      })
+      .find((candidate): candidate is string => candidate !== undefined && host.exists(candidate));
     const commandPath = installed
       ? installed
       : (definition.windowsCommands ?? [])
@@ -162,6 +170,21 @@ function detectWindowsEditors(host: EditorDetectionHost): readonly DetectedEdito
     }
   }
   return detected;
+}
+
+/** Environment directory a `windowsInstalls` entry is relative to. */
+export function resolveWindowsInstallRoot(
+  host: EditorDetectionHost,
+  root: WindowsInstallRoot,
+): string | undefined {
+  switch (root) {
+    case "localAppData":
+      return host.env.LOCALAPPDATA ?? host.env.LocalAppData;
+    case "programFiles":
+      return host.env.ProgramFiles ?? host.env.PROGRAMFILES;
+    case "programFilesX86":
+      return host.env["ProgramFiles(x86)"] ?? host.env["PROGRAMFILES(X86)"];
+  }
 }
 
 function toDetectedEditor(

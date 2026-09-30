@@ -4,6 +4,7 @@ import {
   buildEditorLaunchCommand,
   detectInstalledEditors,
   resolvePosixCommand,
+  resolveWindowsInstallRoot,
   type DetectedEditor,
   type EditorDetectionHost,
 } from "../../electron/platform/editors/detect-editors";
@@ -15,14 +16,13 @@ import {
  */
 
 function host(overrides: Partial<EditorDetectionHost> & Pick<EditorDetectionHost, "platform">) {
-  const existing = overrides;
   return {
     homeDir: "/home/dev",
     env: {},
     exists: () => false,
     isExecutable: () => false,
     listDirectory: () => [],
-    ...existing,
+    ...overrides,
   } satisfies EditorDetectionHost;
 }
 
@@ -43,6 +43,42 @@ test("macOS detection finds application bundles in both application folders", ()
   expect(editors[0]?.launch).toEqual({
     kind: "mac-app",
     appPath: "/Applications/Visual Studio Code.app",
+  });
+});
+
+test("Linux detection prefers a PATH executable over the desktop entry", () => {
+  const editors = detectInstalledEditors(
+    host({
+      platform: "linux",
+      homeDir: "/home/dev",
+      env: { PATH: "/usr/local/bin:/usr/bin" },
+      listDirectory: (directory) =>
+        directory === "/usr/share/applications" ? ["android-studio.desktop"] : [],
+      exists: (candidate) => candidate === "/usr/share/applications/android-studio.desktop",
+      isExecutable: (candidate) => candidate === "/usr/local/bin/studio",
+    }),
+  );
+
+  expect(ids(editors)).toEqual(["android-studio"]);
+  expect(editors[0]?.launch).toEqual({ kind: "command", commandPath: "/usr/local/bin/studio" });
+});
+
+test("Linux detection falls back to the desktop entry when the PATH executable is absent", () => {
+  const editors = detectInstalledEditors(
+    host({
+      platform: "linux",
+      homeDir: "/home/dev",
+      env: { PATH: "/usr/bin" },
+      listDirectory: (directory) =>
+        directory === "/usr/share/applications" ? ["android-studio.desktop"] : [],
+      exists: (candidate) => candidate === "/usr/share/applications/android-studio.desktop",
+    }),
+  );
+
+  expect(ids(editors)).toEqual(["android-studio"]);
+  expect(editors[0]?.launch).toMatchObject({
+    kind: "desktop-entry",
+    desktopId: "android-studio.desktop",
   });
 });
 
@@ -96,6 +132,86 @@ test("Linux detection falls back to gio when gtk-launch is absent", () => {
   );
 
   expect(editors[0]?.launch).toMatchObject({ kind: "desktop-entry", launcher: "gio" });
+});
+
+test("Windows detection finds program files installs without LOCALAPPDATA", () => {
+  const editors = detectInstalledEditors(
+    host({
+      platform: "win32",
+      homeDir: "C:\\Users\\dev",
+      env: { ProgramFiles: "C:\\Program Files", PATH: "" },
+      exists: (candidate) => candidate === "C:\\Program Files\\Sublime Text 3\\sublime_text.exe",
+    }),
+  );
+
+  expect(ids(editors)).toEqual(["sublime"]);
+  expect(editors[0]?.launch).toEqual({
+    kind: "command",
+    commandPath: "C:\\Program Files\\Sublime Text 3\\sublime_text.exe",
+  });
+});
+
+test("Windows detection resolves every install root from the environment", () => {
+  const detectionHost = host({
+    platform: "win32",
+    env: {
+      LOCALAPPDATA: "C:\\Users\\dev\\AppData\\Local",
+      ProgramFiles: "C:\\Program Files",
+      "ProgramFiles(x86)": "C:\\Program Files (x86)",
+    },
+  });
+
+  expect(resolveWindowsInstallRoot(detectionHost, "localAppData")).toBe(
+    "C:\\Users\\dev\\AppData\\Local",
+  );
+  expect(resolveWindowsInstallRoot(detectionHost, "programFiles")).toBe("C:\\Program Files");
+  expect(resolveWindowsInstallRoot(detectionHost, "programFilesX86")).toBe(
+    "C:\\Program Files (x86)",
+  );
+});
+
+test("Windows detection finds the editors with known install paths", () => {
+  const editors = detectInstalledEditors(
+    host({
+      platform: "win32",
+      homeDir: "C:\\Users\\dev",
+      env: {
+        LOCALAPPDATA: "C:\\Users\\dev\\AppData\\Local",
+        ProgramFiles: "C:\\Program Files",
+        PATH: "C:\\Users\\dev\\bin",
+      },
+      exists: (candidate) =>
+        [
+          "C:\\Users\\dev\\AppData\\Local\\Programs\\Microsoft VS Code Insiders\\Code - Insiders.exe",
+          "C:\\Users\\dev\\AppData\\Local\\Programs\\Windsurf\\Windsurf.exe",
+          "C:\\Users\\dev\\AppData\\Local\\Programs\\Android Studio\\bin\\studio64.exe",
+          "C:\\Program Files\\Sublime Text\\sublime_text.exe",
+          "C:\\Users\\dev\\bin\\cursor.exe",
+        ].includes(candidate),
+    }),
+  );
+
+  expect(ids(editors)).toEqual([
+    "cursor",
+    "windsurf",
+    "vscode-insiders",
+    "sublime",
+    "android-studio",
+  ]);
+});
+
+test("Windows detection ignores a .cmd shim on PATH", () => {
+  const editors = detectInstalledEditors(
+    host({
+      platform: "win32",
+      homeDir: "C:\\Users\\dev",
+      env: { PATH: "C:\\Users\\dev\\bin" },
+      exists: (candidate) => candidate === "C:\\Users\\dev\\bin\\cursor.cmd",
+    }),
+  );
+
+  // The probe looks for `<command>.exe`; a shell shim is not a launchable target.
+  expect(ids(editors)).toEqual([]);
 });
 
 test("Windows detection checks installed programs before PATH", () => {

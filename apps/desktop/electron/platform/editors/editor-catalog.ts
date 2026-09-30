@@ -3,8 +3,12 @@
  * each probe needs. Detection lives in `detect-editors.ts`; this file is data.
  */
 
+export type WindowsInstallRoot = "localAppData" | "programFiles" | "programFilesX86";
+
 export interface WindowsEditorInstall {
-  /** Directory under `%LOCALAPPDATA%\Programs`. */
+  /** Environment root the directory is relative to. */
+  readonly root: WindowsInstallRoot;
+  /** Directory under that root. */
   readonly directory: string;
   /** Executable inside that directory. */
   readonly executable: string;
@@ -27,6 +31,10 @@ export interface EditorDefinition {
 /**
  * Order is the menu order, and the first detected entry is the default target
  * for the main button until the user picks a different one.
+ *
+ * An entry's platform fields are the platforms it is detected on. A missing
+ * field means the editor has no reliable executable path there, so it is
+ * intentionally not offered on that platform rather than silently forgotten.
  */
 export const EDITOR_CATALOG: readonly EditorDefinition[] = [
   {
@@ -35,7 +43,10 @@ export const EDITOR_CATALOG: readonly EditorDefinition[] = [
     macAppName: "Visual Studio Code",
     posixCommands: ["code"],
     windowsCommands: ["code"],
-    windowsInstalls: [{ directory: "Microsoft VS Code", executable: "Code.exe" }],
+    windowsInstalls: [
+      { root: "localAppData", directory: "Programs\\Microsoft VS Code", executable: "Code.exe" },
+      { root: "programFiles", directory: "Microsoft VS Code", executable: "Code.exe" },
+    ],
     linuxDesktopIds: [
       "code.desktop",
       "com.microsoft.VSCode.desktop",
@@ -49,7 +60,9 @@ export const EDITOR_CATALOG: readonly EditorDefinition[] = [
     macAppName: "Cursor",
     posixCommands: ["cursor"],
     windowsCommands: ["cursor"],
-    windowsInstalls: [{ directory: "cursor", executable: "Cursor.exe" }],
+    windowsInstalls: [
+      { root: "localAppData", directory: "Programs\\cursor", executable: "Cursor.exe" },
+    ],
     linuxDesktopIds: ["cursor.desktop", "com.cursor.Cursor.desktop"],
   },
   {
@@ -64,6 +77,10 @@ export const EDITOR_CATALOG: readonly EditorDefinition[] = [
     label: "Windsurf",
     macAppName: "Windsurf",
     posixCommands: ["windsurf"],
+    windowsCommands: ["windsurf"],
+    windowsInstalls: [
+      { root: "localAppData", directory: "Programs\\Windsurf", executable: "Windsurf.exe" },
+    ],
     linuxDesktopIds: ["windsurf.desktop"],
   },
   {
@@ -73,7 +90,11 @@ export const EDITOR_CATALOG: readonly EditorDefinition[] = [
     posixCommands: ["code-insiders"],
     windowsCommands: ["code-insiders"],
     windowsInstalls: [
-      { directory: "Microsoft VS Code Insiders", executable: "Code - Insiders.exe" },
+      {
+        root: "localAppData",
+        directory: "Programs\\Microsoft VS Code Insiders",
+        executable: "Code - Insiders.exe",
+      },
     ],
     linuxDesktopIds: ["code-insiders.desktop"],
   },
@@ -82,6 +103,10 @@ export const EDITOR_CATALOG: readonly EditorDefinition[] = [
     label: "Sublime Text",
     macAppName: "Sublime Text",
     posixCommands: ["subl"],
+    windowsInstalls: [
+      { root: "programFiles", directory: "Sublime Text", executable: "sublime_text.exe" },
+      { root: "programFiles", directory: "Sublime Text 3", executable: "sublime_text.exe" },
+    ],
     linuxDesktopIds: ["sublime_text.desktop"],
   },
   {
@@ -110,6 +135,13 @@ export const EDITOR_CATALOG: readonly EditorDefinition[] = [
     label: "Android Studio",
     macAppName: "Android Studio",
     posixCommands: ["studio"],
+    windowsInstalls: [
+      {
+        root: "localAppData",
+        directory: "Programs\\Android Studio",
+        executable: "bin\\studio64.exe",
+      },
+    ],
     linuxDesktopIds: ["android-studio.desktop", "android-studio_android-studio.desktop"],
   },
   {
