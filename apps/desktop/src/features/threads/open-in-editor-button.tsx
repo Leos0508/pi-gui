@@ -7,9 +7,11 @@ interface OpenInEditorButtonProps {
 }
 
 export function OpenInEditorButton({ state, onOpenFolder }: OpenInEditorButtonProps) {
-  const label = state.targetLabel
-    ? `Open in ${state.targetLabel}`
-    : "Open this project in an editor";
+  const label = state.loading
+    ? "Looking for editors…"
+    : state.targetLabel
+      ? `Open in ${state.targetLabel}`
+      : "Open this project in the file manager";
 
   return (
     <div className="open-in-editor" ref={state.wrapRef}>
@@ -17,7 +19,7 @@ export function OpenInEditorButton({ state, onOpenFolder }: OpenInEditorButtonPr
         aria-label={label}
         className="open-in-editor__main"
         data-testid="open-in-editor"
-        disabled={state.busy}
+        disabled={state.busy || state.loading}
         title={label}
         type="button"
         onClick={() => state.openIn()}
@@ -38,8 +40,14 @@ export function OpenInEditorButton({ state, onOpenFolder }: OpenInEditorButtonPr
       </button>
       {state.menuOpen ? (
         <div className="open-in-editor__menu" data-testid="open-in-editor-menu" role="menu">
-          {state.editors.length === 0 ? (
-            <p className="open-in-editor__empty">No supported editor found on this computer.</p>
+          {state.loading ? (
+            <p className="open-in-editor__empty" data-testid="open-in-editor-loading">
+              Looking for editors…
+            </p>
+          ) : state.editors.length === 0 ? (
+            <p className="open-in-editor__empty" data-testid="open-in-editor-empty">
+              No supported editor found on this computer.
+            </p>
           ) : (
             state.editors.map((editor) => (
               <button
@@ -59,7 +67,7 @@ export function OpenInEditorButton({ state, onOpenFolder }: OpenInEditorButtonPr
               </button>
             ))
           )}
-          {state.editors.length === 0 ? (
+          {!state.loading && state.editors.length === 0 ? (
             <button
               className="open-in-editor__item"
               data-testid="open-in-editor-folder"

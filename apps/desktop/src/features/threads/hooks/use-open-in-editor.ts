@@ -13,6 +13,7 @@ export interface OpenInEditorState {
   readonly preferredEditorId: string | undefined;
   readonly menuOpen: boolean;
   readonly busy: boolean;
+  readonly loading: boolean;
   readonly error: string | undefined;
   readonly targetLabel: string | undefined;
   readonly wrapRef: RefObject<HTMLDivElement | null>;
@@ -29,11 +30,13 @@ export function useOpenInEditor(params: UseOpenInEditorParams): OpenInEditorStat
   const [list, setList] = useState<DesktopEditorList>({ editors: [] });
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>(undefined);
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!api) {
+      setLoading(false);
       return undefined;
     }
     let cancelled = false;
@@ -46,6 +49,11 @@ export function useOpenInEditor(params: UseOpenInEditorParams): OpenInEditorStat
       })
       .catch((cause: unknown) => {
         console.error("[renderer] listEditors failed", cause);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
       });
     return () => {
       cancelled = true;
@@ -76,37 +84,51 @@ export function useOpenInEditor(params: UseOpenInEditorParams): OpenInEditorStat
   }, [menuOpen]);
 
   const toggleMenu = useCallback(() => {
+    // Opening the menu is the start of a new attempt, so a previous failure
+    // stops being reported here.
     setError(undefined);
     setMenuOpen((current) => !current);
   }, []);
 
   const openIn = useCallback(
     (editorId?: string) => {
-      setMenuOpen(false);
-      if (!api || !workspaceId || busy) {
+      if (!api || !workspaceId || busy || loading) {
         return;
       }
+      setError(undefined);
       const target = editorId ?? list.preferredEditorId ?? list.editors[0]?.id;
       if (!target) {
+        setMenuOpen(false);
         onOpenFolder();
         return;
       }
       setBusy(true);
-      setError(undefined);
       void api
         .openWorkspaceInEditor(workspaceId, target)
         .then((next) => {
           setList(next);
+          setMenuOpen(false);
         })
         .catch((cause: unknown) => {
           console.error("[renderer] openWorkspaceInEditor failed", cause);
           setError("Could not open that editor. Try another one.");
+          // Keep the menu open so the failure is visible, and re-request the
+          // list because main just dropped its cache after the failed launch.
+          setMenuOpen(true);
+          void api
+            .listEditors()
+            .then((refreshed) => {
+              setList(refreshed);
+            })
+            .catch((refreshCause: unknown) => {
+              console.error("[renderer] listEditors refresh failed", refreshCause);
+            });
         })
         .finally(() => {
           setBusy(false);
         });
     },
-    [api, busy, list.editors, list.preferredEditorId, onOpenFolder, workspaceId],
+    [api, busy, list.editors, list.preferredEditorId, loading, onOpenFolder, workspaceId],
   );
 
   const preferred =
@@ -117,6 +139,7 @@ export function useOpenInEditor(params: UseOpenInEditorParams): OpenInEditorStat
     preferredEditorId: list.preferredEditorId,
     menuOpen,
     busy,
+    loading,
     error,
     targetLabel: preferred?.label,
     wrapRef,

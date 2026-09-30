@@ -266,6 +266,15 @@ export function registerDesktopIpc({
     windows.runStateAction(senderWindow(windows, event), action);
   const immediate = (event: IpcMainInvokeEvent, action: () => Promise<DesktopAppState>) =>
     windows.runImmediateStateAction(senderWindow(windows, event), action);
+  const requireWorkspacePath = (event: IpcMainInvokeEvent, rawWorkspaceId: unknown): string => {
+    windows.windowForSender(event.sender);
+    const workspaceId = expectNonEmptyString(rawWorkspaceId, "workspaceId");
+    const workspacePath = owners.workspace.getWorkspacePath(workspaceId);
+    if (!workspacePath) {
+      throw new Error(`Unknown workspace: ${workspaceId}`);
+    }
+    return workspacePath;
+  };
   const reportLimit = (event: IpcMainInvokeEvent, error: ComposerAttachmentLimitError) =>
     run(event, () => owners.conversation.withError(error));
   const runCatchingLimits = async (
@@ -354,13 +363,7 @@ export function registerDesktopIpc({
     ),
   );
   ipcMain.handle(desktopIpc.openWorkspaceInFinder, async (event, rawWorkspaceId: unknown) => {
-    windows.windowForSender(event.sender);
-    const workspaceId = expectNonEmptyString(rawWorkspaceId, "workspaceId");
-    const workspacePath = owners.workspace.getWorkspacePath(workspaceId);
-    if (!workspacePath) {
-      throw new Error(`Unknown workspace: ${workspaceId}`);
-    }
-    await shell.openPath(workspacePath);
+    await shell.openPath(requireWorkspacePath(event, rawWorkspaceId));
   });
   ipcMain.handle(desktopIpc.listEditors, (event) => {
     windows.windowForSender(event.sender);
@@ -369,13 +372,8 @@ export function registerDesktopIpc({
   ipcMain.handle(
     desktopIpc.openWorkspaceInEditor,
     async (event, rawWorkspaceId: unknown, rawEditorId: unknown) => {
-      windows.windowForSender(event.sender);
-      const workspaceId = expectNonEmptyString(rawWorkspaceId, "workspaceId");
+      const workspacePath = requireWorkspacePath(event, rawWorkspaceId);
       const editorId = expectNonEmptyString(rawEditorId, "editorId");
-      const workspacePath = owners.workspace.getWorkspacePath(workspaceId);
-      if (!workspacePath) {
-        throw new Error(`Unknown workspace: ${workspaceId}`);
-      }
       return capabilities.editors.open(workspacePath, editorId);
     },
   );

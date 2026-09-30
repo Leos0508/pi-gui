@@ -33,12 +33,13 @@ test("opens the editor menu beside the sidebar toggle", async () => {
     await expect(trigger).toBeVisible();
     await expect(window.getByTestId("open-in-editor-menu")).toHaveCount(0);
     await expect(trigger).toHaveAttribute("aria-expanded", "false");
+    // The main half stays disabled until the first probe settles.
+    await expect(mainButton).toBeEnabled();
 
     await trigger.click();
     const menu = window.getByTestId("open-in-editor-menu");
     await expect(menu).toBeVisible();
     await expect(trigger).toHaveAttribute("aria-expanded", "true");
-    await expect(menu.locator(".open-in-editor__item").first()).toBeVisible();
 
     await window.keyboard.press("Escape");
     await expect(menu).toHaveCount(0);
@@ -55,10 +56,22 @@ test("opens the editor menu beside the sidebar toggle", async () => {
       }
       return app.listEditors();
     });
-    expect(Array.isArray(list.editors)).toBe(true);
-    if (list.preferredEditorId) {
-      expect(list.editors.map((editor) => editor.id)).toContain(list.preferredEditorId);
+
+    // The menu has to match what main reported: every detected editor is listed,
+    // or the empty notice and the folder fallback are. Branching on the real
+    // result keeps the assertion meaningful on an empty machine too.
+    await trigger.click();
+    await expect(menu).toBeVisible();
+    if (list.editors.length === 0) {
+      await expect(window.getByTestId("open-in-editor-empty")).toBeVisible();
+      await expect(window.getByTestId("open-in-editor-folder")).toBeVisible();
+    } else {
+      for (const editor of list.editors) {
+        await expect(window.getByTestId(`open-in-editor-${editor.id}`)).toBeVisible();
+      }
     }
+    await window.keyboard.press("Escape");
+    await expect(menu).toHaveCount(0);
 
     const state = await getDesktopState(window);
     const selected = state.workspaces.find((entry) => entry.path === workspace);
