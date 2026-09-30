@@ -61,6 +61,8 @@ import {
 } from "../features/threads/thread-switcher-order";
 import { useThreadSwitcher } from "../features/threads/hooks/use-thread-switcher";
 import { SidebarToggleButton } from "../features/threads/sidebar-toggle-button";
+import { OpenInEditorButton } from "../features/threads/open-in-editor-button";
+import { useOpenInEditor } from "../features/threads/hooks/use-open-in-editor";
 import { Topbar } from "./topbar";
 import { TerminalPanel } from "../features/workbench/terminal-panel";
 import { ConversationTimeline } from "../features/conversation/conversation-timeline";
@@ -546,6 +548,19 @@ export default function App() {
     setSnapshot,
     updateSnapshot,
   });
+  const openSelectedWorkspaceFolder = useCallback(() => {
+    if (!api || !selectedWorkspace) {
+      return;
+    }
+    void api.openWorkspaceInFinder(selectedWorkspace.id).catch((error: unknown) => {
+      console.error("[renderer] openWorkspaceInFinder failed", error);
+    });
+  }, [api, selectedWorkspace]);
+  const openInEditor = useOpenInEditor({
+    api,
+    workspaceId: selectedWorkspace?.id,
+    onOpenFolder: openSelectedWorkspaceFolder,
+  });
   const threadMenu = useThreadActions({
     api,
     setSnapshot,
@@ -964,6 +979,9 @@ export default function App() {
           shortcutLabel={sidebarToggleShortcutLabel}
           onToggle={commands.togglePrimarySidebar}
         />
+      ) : null}
+      {primarySidebarToggleVisible && selectedWorkspace ? (
+        <OpenInEditorButton state={openInEditor} onOpenFolder={openSelectedWorkspaceFolder} />
       ) : null}
       {!snapshot.sidebarCollapsed ? (
         <Sidebar

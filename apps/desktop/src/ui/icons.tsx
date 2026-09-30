@@ -725,6 +725,29 @@ export function MoreIcon() {
   );
 }
 
+export function OpenInEditorIcon() {
+  return (
+    <Icon>
+      <rect
+        x="3.2"
+        y="4.3"
+        width="13.6"
+        height="11.4"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="1.35"
+      />
+      <path
+        d="m8.2 8.5-1.8 1.5 1.8 1.5M11.8 8.5l1.8 1.5-1.8 1.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.35"
+      />
+    </Icon>
+  );
+}
+
 export function MinusIcon() {
   return (
     <Icon>
