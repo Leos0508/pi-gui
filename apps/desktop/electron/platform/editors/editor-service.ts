@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { spawn } from "node:child_process";
 import type { DesktopEditorList } from "../../../contracts/editors";
 import {
   buildEditorLaunchCommand,
@@ -12,15 +12,20 @@ export interface EditorServiceDeps {
   readonly launch: (command: string, args: readonly string[]) => Promise<void>;
 }
 
-function launchWithExecFile(command: string, args: readonly string[]): Promise<void> {
+function launchWithSpawn(command: string, args: readonly string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    execFile(command, [...args], { windowsHide: true }, (error) => {
-      if (error) {
-        reject(error);
-        return;
-      }
+    // A foreground editor owns its own process for as long as it is open, so the
+    // launch must resolve when the process starts, not when it exits.
+    const child = spawn(command, [...args], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+    });
+    child.once("spawn", () => {
+      child.unref();
       resolve();
     });
+    child.once("error", reject);
   });
 }
 
@@ -37,7 +42,7 @@ export class EditorService {
   constructor(deps?: EditorServiceDeps) {
     this.deps = deps ?? {
       detect: () => detectInstalledEditors(createEditorDetectionHost()),
-      launch: launchWithExecFile,
+      launch: launchWithSpawn,
     };
   }
 
