@@ -969,7 +969,10 @@ export default function App() {
     );
   }
 
-  const shellClassName = `shell${snapshot.sidebarCollapsed ? " shell--sidebar-collapsed" : ""}`;
+  const openInEditorVisible = Boolean(primarySidebarToggleVisible && selectedWorkspace);
+  const shellClassName = `shell${snapshot.sidebarCollapsed ? " shell--sidebar-collapsed" : ""}${
+    openInEditorVisible ? " shell--with-editor-button" : ""
+  }`;
 
   return (
     <div className={shellClassName}>
@@ -980,7 +983,7 @@ export default function App() {
           onToggle={commands.togglePrimarySidebar}
         />
       ) : null}
-      {primarySidebarToggleVisible && selectedWorkspace ? (
+      {openInEditorVisible ? (
         <OpenInEditorButton state={openInEditor} onOpenFolder={openSelectedWorkspaceFolder} />
       ) : null}
       {!snapshot.sidebarCollapsed ? (

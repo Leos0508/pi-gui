@@ -76,6 +76,18 @@ test("opens the editor menu beside the sidebar toggle", async () => {
       }
     }, selected?.id ?? "");
     expect(rejection).toContain("Unknown editor");
+
+    // Collapsing the sidebar pulls the title left, into the strip the split
+    // button sits in. The shell reserves room so the two never overlap.
+    await window.getByTestId("sidebar-toggle").click();
+    await expect(mainButton).toBeVisible();
+    const editorControl = await window.locator(".open-in-editor").boundingBox();
+    const title = await window.locator(".topbar__title").boundingBox();
+    expect(editorControl).not.toBeNull();
+    expect(title).not.toBeNull();
+    if (editorControl && title) {
+      expect(editorControl.x + editorControl.width).toBeLessThanOrEqual(title.x);
+    }
   } finally {
     await harness.close();
   }

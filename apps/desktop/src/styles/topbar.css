@@ -156,7 +156,9 @@
   -webkit-app-region: no-drag;
   position: absolute;
   top: 11px;
-  left: calc(var(--titlebar-toggle-left) + var(--titlebar-toggle-size) + 6px);
+  left: calc(
+    var(--titlebar-toggle-left) + var(--titlebar-toggle-size) + var(--titlebar-editor-button-gap)
+  );
   z-index: 80;
   display: flex;
   align-items: stretch;
@@ -185,7 +187,7 @@
 }
 
 .open-in-editor__trigger {
-  width: 14px;
+  width: var(--titlebar-editor-trigger-width);
   border-left: 1px solid var(--line);
   border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
 }
@@ -267,6 +269,14 @@
 .shell--sidebar-collapsed .topbar {
   margin-left: var(--titlebar-collapsed-main-padding-left);
   padding-left: 0;
+}
+
+/* The collapsed title would otherwise start under the editor split button. */
+.shell--sidebar-collapsed.shell--with-editor-button .topbar {
+  margin-left: calc(
+    var(--titlebar-collapsed-main-padding-left) + var(--titlebar-editor-button-gap) +
+      var(--titlebar-editor-button-width)
+  );
 }
 
 .topbar__title:has(.chat-header__title) .topbar__workspace {
