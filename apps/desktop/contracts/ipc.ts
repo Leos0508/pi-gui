@@ -132,6 +132,7 @@ export const desktopIpc = {
   reorderPinnedSessions: "pi-gui:reorder-pinned-sessions",
   openWorkspaceInFinder: "pi-gui:open-workspace-in-finder",
   listEditors: "pi-gui:list-editors",
+  setPreferredEditor: "pi-gui:set-preferred-editor",
   openWorkspaceInEditor: "pi-gui:open-workspace-in-editor",
   createWorktree: "pi-gui:create-worktree",
   removeWorktree: "pi-gui:remove-worktree",
@@ -716,6 +717,7 @@ export interface PiDesktopApi {
   reorderPinnedSessions(pinnedSessionOrder: readonly string[]): Promise<DesktopAppState>;
   openWorkspaceInFinder(workspaceId: string): Promise<void>;
   listEditors(): Promise<DesktopEditorList>;
+  setPreferredEditor(editorId: string): Promise<DesktopEditorList>;
   openWorkspaceInEditor(workspaceId: string, editorId: string): Promise<DesktopEditorList>;
   createWorktree(input: CreateWorktreeInput): Promise<DesktopAppState>;
   removeWorktree(input: RemoveWorktreeInput): Promise<DesktopAppState>;

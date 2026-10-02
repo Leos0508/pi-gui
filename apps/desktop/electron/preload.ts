@@ -230,6 +230,8 @@ contextBridge.exposeInMainWorld("piApp", {
   openWorkspaceInFinder: (workspaceId: string) =>
     ipcRenderer.invoke(desktopIpc.openWorkspaceInFinder, workspaceId) as Promise<void>,
   listEditors: () => ipcRenderer.invoke(desktopIpc.listEditors) as Promise<DesktopEditorList>,
+  setPreferredEditor: (editorId: string) =>
+    ipcRenderer.invoke(desktopIpc.setPreferredEditor, editorId) as Promise<DesktopEditorList>,
   openWorkspaceInEditor: (workspaceId: string, editorId: string) =>
     ipcRenderer.invoke(
       desktopIpc.openWorkspaceInEditor,

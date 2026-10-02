@@ -59,7 +59,7 @@ export function OpenInEditorButton({ state, onOpenFolder }: OpenInEditorButtonPr
                 data-testid={`open-in-editor-${editor.id}`}
                 role="menuitem"
                 type="button"
-                onClick={() => state.openIn(editor.id)}
+                onClick={() => state.selectEditor(editor.id)}
               >
                 <span className="open-in-editor__item-label">{editor.label}</span>
                 {editor.id === state.preferredEditorId ? (

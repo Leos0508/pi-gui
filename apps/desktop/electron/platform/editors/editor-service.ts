@@ -80,6 +80,16 @@ export class EditorService {
     return this.list();
   }
 
+  /** Records the user's pick without launching anything. */
+  select(editorId: string): DesktopEditorList {
+    const editor = this.findEditor(editorId) ?? this.redetect(editorId);
+    if (!editor) {
+      throw new Error(`Unknown editor: ${editorId}`);
+    }
+    this.preferredEditorId = editor.id;
+    return this.list();
+  }
+
   private detectedEditors(): readonly DetectedEditor[] {
     this.detected ??= this.deps.detect();
     return this.detected;

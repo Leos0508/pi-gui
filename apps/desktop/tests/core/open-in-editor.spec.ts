@@ -87,6 +87,27 @@ test("shows the detected editor beside the side panel toggle", async () => {
     await window.keyboard.press("Escape");
     await expect(menu).toHaveCount(0);
 
+    // Choosing from the menu only re-targets the main button; nothing opens.
+    if (list.editors.length > 1) {
+      const currentId = list.preferredEditorId ?? list.editors[0]?.id;
+      const other = list.editors.find((editor) => editor.id !== currentId);
+      if (other) {
+        await trigger.click();
+        await expect(menu).toBeVisible();
+        await window.getByTestId(`open-in-editor-${other.id}`).click();
+        await expect(menu).toHaveCount(0);
+        await expect(label).toHaveText(other.shortLabel);
+        const refreshed = await window.evaluate(async () => {
+          const app = globalThis.window.piApp;
+          if (!app) {
+            throw new Error("piApp IPC bridge is unavailable");
+          }
+          return app.listEditors();
+        });
+        expect(refreshed.preferredEditorId).toBe(other.id);
+      }
+    }
+
     const state = await getDesktopState(window);
     const selected = state.workspaces.find((entry) => entry.path === workspace);
     expect(selected).toBeDefined();

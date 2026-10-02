@@ -369,6 +369,10 @@ export function registerDesktopIpc({
     windows.windowForSender(event.sender);
     return capabilities.editors.list();
   });
+  ipcMain.handle(desktopIpc.setPreferredEditor, (event, rawEditorId: unknown) => {
+    windows.windowForSender(event.sender);
+    return capabilities.editors.select(expectNonEmptyString(rawEditorId, "editorId"));
+  });
   ipcMain.handle(
     desktopIpc.openWorkspaceInEditor,
     async (event, rawWorkspaceId: unknown, rawEditorId: unknown) => {

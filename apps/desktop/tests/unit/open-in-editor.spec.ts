@@ -393,6 +393,43 @@ test("EditorService probes the OS default once and reuses the answer", () => {
   expect(service.list().preferredEditorId).toBe("vscode");
 });
 
+test("EditorService.select records a pick without launching anything", async () => {
+  let launches = 0;
+  const service = new EditorService({
+    detect: () => [cursorEditor, detectedEditor],
+    detectDefault: () => "vscode",
+    launch: () => {
+      launches += 1;
+      return Promise.resolve();
+    },
+  });
+
+  expect(service.select("cursor")).toEqual({
+    editors: [
+      { id: "cursor", label: "Cursor", shortLabel: "Cursor" },
+      { id: "vscode", label: "Visual Studio Code", shortLabel: "vscode" },
+    ],
+    preferredEditorId: "cursor",
+  });
+  expect(launches).toBe(0);
+});
+
+test("EditorService.select rejects an unknown editor without launching anything", async () => {
+  let launches = 0;
+  const service = new EditorService({
+    detect: () => [detectedEditor],
+    detectDefault: () => undefined,
+    launch: () => {
+      launches += 1;
+      return Promise.resolve();
+    },
+  });
+
+  expect(() => service.select("not-an-editor")).toThrow("Unknown editor: not-an-editor");
+  expect(launches).toBe(0);
+  expect(service.list().preferredEditorId).toBeUndefined();
+});
+
 test("EditorService opens a known editor and remembers it as the preference", async () => {
   const launches: { command: string; args: readonly string[] }[] = [];
   const service = new EditorService({
