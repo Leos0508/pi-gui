@@ -8,12 +8,13 @@ import {
 } from "../helpers/electron-app";
 
 /**
- * The "open in editor" control is a split button: the main half opens the
- * preferred editor, the thin chevron half lists what main actually detected on
- * this machine. Detection is per-host, so the menu assertions allow either a
+ * The "open in editor" control lives in the topbar actions cluster, next to the
+ * side-panel toggle. The main half shows the target editor's short name and
+ * opens it; the thin chevron half lists what main actually detected on this
+ * machine. Detection is per-host, so the menu assertions allow either a
  * populated list or the empty notice plus the folder fallback.
  */
-test("opens the editor menu beside the sidebar toggle", async () => {
+test("shows the detected editor beside the side panel toggle", async () => {
   test.setTimeout(60_000);
   const userDataDir = await makeUserDataDir();
   const workspace = await makeWorkspace("open-in-editor");
@@ -28,13 +29,34 @@ test("opens the editor menu beside the sidebar toggle", async () => {
 
     const mainButton = window.getByTestId("open-in-editor");
     const trigger = window.getByTestId("open-in-editor-menu-trigger");
-    await expect(window.getByTestId("sidebar-toggle")).toBeVisible();
+    await expect(window.getByTestId("toggle-side-panel")).toBeVisible();
     await expect(mainButton).toBeVisible();
     await expect(trigger).toBeVisible();
+    // The control sits in the topbar actions, next to the side-panel toggle.
+    await expect(window.locator(".topbar__actions .open-in-editor")).toHaveCount(1);
     await expect(window.getByTestId("open-in-editor-menu")).toHaveCount(0);
     await expect(trigger).toHaveAttribute("aria-expanded", "false");
     // The main half stays disabled until the first probe settles.
     await expect(mainButton).toBeEnabled();
+
+    const list = await window.evaluate(async () => {
+      const app = globalThis.window.piApp;
+      if (!app) {
+        throw new Error("piApp IPC bridge is unavailable");
+      }
+      return app.listEditors();
+    });
+
+    // The label is the short name of the target editor, not an icon.
+    const label = window.getByTestId("open-in-editor-label");
+    await expect(label).toBeVisible();
+    if (list.editors.length === 0) {
+      await expect(label).toHaveText("Folder");
+    } else {
+      const preferredId = list.preferredEditorId ?? list.editors[0]?.id;
+      const preferred = list.editors.find((editor) => editor.id === preferredId);
+      await expect(label).toHaveText(preferred?.shortLabel ?? "Folder");
+    }
 
     await trigger.click();
     const menu = window.getByTestId("open-in-editor-menu");
@@ -48,14 +70,6 @@ test("opens the editor menu beside the sidebar toggle", async () => {
     await expect(menu).toBeVisible();
     await trigger.click();
     await expect(menu).toHaveCount(0);
-
-    const list = await window.evaluate(async () => {
-      const app = globalThis.window.piApp;
-      if (!app) {
-        throw new Error("piApp IPC bridge is unavailable");
-      }
-      return app.listEditors();
-    });
 
     // The menu has to match what main reported: every detected editor is listed,
     // or the empty notice and the folder fallback are. Branching on the real
@@ -89,18 +103,6 @@ test("opens the editor menu beside the sidebar toggle", async () => {
       }
     }, selected?.id ?? "");
     expect(rejection).toContain("Unknown editor");
-
-    // Collapsing the sidebar pulls the title left, into the strip the split
-    // button sits in. The shell reserves room so the two never overlap.
-    await window.getByTestId("sidebar-toggle").click();
-    await expect(mainButton).toBeVisible();
-    const editorControl = await window.locator(".open-in-editor").boundingBox();
-    const title = await window.locator(".topbar__title").boundingBox();
-    expect(editorControl).not.toBeNull();
-    expect(title).not.toBeNull();
-    if (editorControl && title) {
-      expect(editorControl.x + editorControl.width).toBeLessThanOrEqual(title.x);
-    }
   } finally {
     await harness.close();
   }

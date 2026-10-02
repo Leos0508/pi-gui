@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { accessSync, constants, existsSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -16,6 +17,7 @@ export type DetectedEditorLaunch =
 export interface DetectedEditor {
   readonly id: string;
   readonly label: string;
+  readonly shortLabel: string;
   readonly launch: DetectedEditorLaunch;
 }
 
@@ -27,6 +29,8 @@ export interface EditorDetectionHost {
   readonly exists: (absolutePath: string) => boolean;
   readonly isExecutable: (absolutePath: string) => boolean;
   readonly listDirectory: (absolutePath: string) => readonly string[];
+  /** Runs a probe command and returns stdout, or undefined when it fails. */
+  readonly runCommand: (command: string, args: readonly string[]) => string | undefined;
 }
 
 export function detectInstalledEditors(host: EditorDetectionHost): readonly DetectedEditor[] {
@@ -58,6 +62,19 @@ export function createEditorDetectionHost(): EditorDetectionHost {
         return readdirSync(absolutePath);
       } catch {
         return [];
+      }
+    },
+    runCommand: (command, args) => {
+      try {
+        return execFileSync(command, [...args], {
+          encoding: "utf8",
+          timeout: 2_000,
+          stdio: ["ignore", "pipe", "ignore"],
+          windowsHide: true,
+        });
+      } catch {
+        // A missing binary or a non-zero exit just means this probe has no answer.
+        return undefined;
       }
     },
   };
@@ -191,7 +208,12 @@ function toDetectedEditor(
   definition: EditorDefinition,
   launch: DetectedEditorLaunch,
 ): DetectedEditor {
-  return { id: definition.id, label: definition.label, launch };
+  return {
+    id: definition.id,
+    label: definition.label,
+    shortLabel: definition.shortLabel,
+    launch,
+  };
 }
 
 export function resolvePosixCommand(
@@ -224,4 +246,157 @@ function resolveWindowsCommand(host: EditorDetectionHost, executable: string): s
     }
   }
   return undefined;
+}
+
+/**
+ * Editor the OS itself would open a folder with, as a catalog id, or undefined
+ * when the machine's default handler is not one of the editors pi-gui knows or
+ * that editor is not installed. Every branch maps the OS's answer back to an
+ * entry that is present in `editors`, so callers never get a phantom id.
+ */
+export function detectDefaultEditorId(
+  host: EditorDetectionHost,
+  editors: readonly DetectedEditor[],
+): string | undefined {
+  if (editors.length === 0) {
+    return undefined;
+  }
+  if (host.platform === "darwin") {
+    return detectMacDefaultEditor(host, editors);
+  }
+  if (host.platform === "win32") {
+    return detectWindowsDefaultEditor(host, editors);
+  }
+  return detectLinuxDefaultEditor(host, editors);
+}
+
+function detectLinuxDefaultEditor(
+  host: EditorDetectionHost,
+  editors: readonly DetectedEditor[],
+): string | undefined {
+  const desktopId = host.runCommand("xdg-mime", ["query", "default", "inode/directory"])?.trim();
+  if (!desktopId) {
+    return undefined;
+  }
+  const fileName = path.posix.basename(desktopId);
+  const definition = EDITOR_CATALOG.find((entry) => entry.linuxDesktopIds?.includes(fileName));
+  return definition && editors.some((editor) => editor.id === definition.id)
+    ? definition.id
+    : undefined;
+}
+
+function detectMacDefaultEditor(
+  host: EditorDetectionHost,
+  editors: readonly DetectedEditor[],
+): string | undefined {
+  const pathApi = path.posix;
+  const preferencesPath = pathApi.join(
+    host.homeDir,
+    "Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure.plist",
+  );
+  if (!host.exists(preferencesPath)) {
+    return undefined;
+  }
+  const json = host.runCommand("plutil", ["-convert", "json", "-o", "-", preferencesPath]);
+  const bundleId = json ? readMacFolderHandlerBundleId(json) : undefined;
+  if (!bundleId) {
+    return undefined;
+  }
+  // LaunchServices stores a bundle identifier, while detection records bundle
+  // paths, so each detected app is read back for the id it actually carries.
+  for (const editor of editors) {
+    if (editor.launch.kind !== "mac-app") {
+      continue;
+    }
+    const infoPlist = pathApi.join(editor.launch.appPath, "Contents/Info.plist");
+    const candidate = host
+      .runCommand("plutil", ["-extract", "CFBundleIdentifier", "raw", "-o", "-", infoPlist])
+      ?.trim();
+    if (candidate === bundleId) {
+      return editor.id;
+    }
+  }
+  return undefined;
+}
+
+function readMacFolderHandlerBundleId(json: string): string | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return undefined;
+  }
+  const handlers = (parsed as { LSHandlers?: unknown }).LSHandlers;
+  if (!Array.isArray(handlers)) {
+    return undefined;
+  }
+  const folderTypes = new Set(["public.folder", "public.directory"]);
+  for (const entry of handlers) {
+    if (typeof entry !== "object" || entry === null) {
+      continue;
+    }
+    const record = entry as Record<string, unknown>;
+    const contentType = record.LSHandlerContentType ?? record.LSContentType;
+    if (typeof contentType !== "string" || !folderTypes.has(contentType)) {
+      continue;
+    }
+    const bundleId =
+      record.LSHandlerRoleAll ?? record.LSHandlerRoleViewer ?? record.LSHandlerRoleEditor;
+    if (typeof bundleId === "string" && bundleId) {
+      return bundleId;
+    }
+  }
+  return undefined;
+}
+
+function detectWindowsDefaultEditor(
+  host: EditorDetectionHost,
+  editors: readonly DetectedEditor[],
+): string | undefined {
+  const verb =
+    readWindowsRegistryDefault(host, "HKCU\\Software\\Classes\\Directory\\shell") ??
+    readWindowsRegistryDefault(host, "HKCR\\Directory\\shell");
+  if (!verb) {
+    return undefined;
+  }
+  const command =
+    readWindowsRegistryDefault(
+      host,
+      `HKCU\\Software\\Classes\\Directory\\shell\\${verb}\\command`,
+    ) ?? readWindowsRegistryDefault(host, `HKCR\\Directory\\shell\\${verb}\\command`);
+  const executable = command ? extractWindowsExecutable(command) : undefined;
+  if (!executable) {
+    return undefined;
+  }
+  const wanted = executable.toLowerCase();
+  const match = editors.find(
+    (editor) =>
+      editor.launch.kind === "command" && editor.launch.commandPath.toLowerCase() === wanted,
+  );
+  return match?.id;
+}
+
+function readWindowsRegistryDefault(host: EditorDetectionHost, key: string): string | undefined {
+  const output = host.runCommand("reg", ["query", key, "/ve"]);
+  if (!output) {
+    return undefined;
+  }
+  for (const line of output.split(/\r?\n/)) {
+    const match = /\sREG_(?:EXPAND_)?SZ\s+(.+)$/.exec(line);
+    if (match?.[1]) {
+      return match[1].trim();
+    }
+  }
+  return undefined;
+}
+
+/** Executable path from a Windows shell command line, quoted or not. */
+function extractWindowsExecutable(command: string): string | undefined {
+  const trimmed = command.trim();
+  if (trimmed.startsWith('"')) {
+    const end = trimmed.indexOf('"', 1);
+    return end > 1 ? trimmed.slice(1, end) : undefined;
+  }
+  const [executable] = trimmed.split(/\s+/);
+  return executable || undefined;
 }

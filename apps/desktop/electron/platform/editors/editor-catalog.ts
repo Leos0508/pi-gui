@@ -17,6 +17,8 @@ export interface WindowsEditorInstall {
 export interface EditorDefinition {
   readonly id: string;
   readonly label: string;
+  /** Compact name for the topbar button, where the full label does not fit. */
+  readonly shortLabel: string;
   /** macOS application name without the `.app` suffix. */
   readonly macAppName?: string;
   /** Executable names resolved on the POSIX `PATH`. */
@@ -29,8 +31,9 @@ export interface EditorDefinition {
 }
 
 /**
- * Order is the menu order, and the first detected entry is the default target
- * for the main button until the user picks a different one.
+ * Order is the menu order. The main button targets the OS default handler when
+ * one is detected, the user's last pick after that, and otherwise the first
+ * detected entry.
  *
  * An entry's platform fields are the platforms it is detected on. A missing
  * field means the editor has no reliable executable path there, so it is
@@ -40,6 +43,7 @@ export const EDITOR_CATALOG: readonly EditorDefinition[] = [
   {
     id: "vscode",
     label: "Visual Studio Code",
+    shortLabel: "vscode",
     macAppName: "Visual Studio Code",
     posixCommands: ["code"],
     windowsCommands: ["code"],
@@ -57,6 +61,7 @@ export const EDITOR_CATALOG: readonly EditorDefinition[] = [
   {
     id: "cursor",
     label: "Cursor",
+    shortLabel: "Cursor",
     macAppName: "Cursor",
     posixCommands: ["cursor"],
     windowsCommands: ["cursor"],
@@ -68,6 +73,7 @@ export const EDITOR_CATALOG: readonly EditorDefinition[] = [
   {
     id: "zed",
     label: "Zed",
+    shortLabel: "Zed",
     macAppName: "Zed",
     posixCommands: ["zed"],
     linuxDesktopIds: ["dev.zed.Zed.desktop"],
@@ -75,6 +81,7 @@ export const EDITOR_CATALOG: readonly EditorDefinition[] = [
   {
     id: "windsurf",
     label: "Windsurf",
+    shortLabel: "Windsurf",
     macAppName: "Windsurf",
     posixCommands: ["windsurf"],
     windowsCommands: ["windsurf"],
@@ -86,6 +93,7 @@ export const EDITOR_CATALOG: readonly EditorDefinition[] = [
   {
     id: "vscode-insiders",
     label: "Visual Studio Code Insiders",
+    shortLabel: "vscode insiders",
     macAppName: "Visual Studio Code - Insiders",
     posixCommands: ["code-insiders"],
     windowsCommands: ["code-insiders"],
@@ -101,6 +109,7 @@ export const EDITOR_CATALOG: readonly EditorDefinition[] = [
   {
     id: "sublime",
     label: "Sublime Text",
+    shortLabel: "Sublime",
     macAppName: "Sublime Text",
     posixCommands: ["subl"],
     windowsInstalls: [
@@ -112,6 +121,7 @@ export const EDITOR_CATALOG: readonly EditorDefinition[] = [
   {
     id: "webstorm",
     label: "WebStorm",
+    shortLabel: "WebStorm",
     macAppName: "WebStorm",
     posixCommands: ["webstorm"],
     linuxDesktopIds: ["jetbrains-webstorm.desktop"],
@@ -119,6 +129,7 @@ export const EDITOR_CATALOG: readonly EditorDefinition[] = [
   {
     id: "intellij",
     label: "IntelliJ IDEA",
+    shortLabel: "IntelliJ",
     macAppName: "IntelliJ IDEA",
     posixCommands: ["idea"],
     linuxDesktopIds: ["jetbrains-idea.desktop", "jetbrains-idea-ce.desktop"],
@@ -126,6 +137,7 @@ export const EDITOR_CATALOG: readonly EditorDefinition[] = [
   {
     id: "pycharm",
     label: "PyCharm",
+    shortLabel: "PyCharm",
     macAppName: "PyCharm",
     posixCommands: ["pycharm"],
     linuxDesktopIds: ["jetbrains-pycharm.desktop", "jetbrains-pycharm-ce.desktop"],
@@ -133,6 +145,7 @@ export const EDITOR_CATALOG: readonly EditorDefinition[] = [
   {
     id: "android-studio",
     label: "Android Studio",
+    shortLabel: "Android Studio",
     macAppName: "Android Studio",
     posixCommands: ["studio"],
     windowsInstalls: [
@@ -147,6 +160,7 @@ export const EDITOR_CATALOG: readonly EditorDefinition[] = [
   {
     id: "xcode",
     label: "Xcode",
+    shortLabel: "Xcode",
     macAppName: "Xcode",
   },
 ];

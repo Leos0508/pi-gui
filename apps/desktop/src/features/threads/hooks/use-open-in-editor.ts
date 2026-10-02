@@ -141,7 +141,7 @@ export function useOpenInEditor(params: UseOpenInEditorParams): OpenInEditorStat
     busy,
     loading,
     error,
-    targetLabel: preferred?.label,
+    targetLabel: preferred?.shortLabel,
     wrapRef,
     toggleMenu,
     openIn,

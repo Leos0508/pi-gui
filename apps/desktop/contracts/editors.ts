@@ -7,6 +7,8 @@
 export interface DesktopEditorDescriptor {
   readonly id: string;
   readonly label: string;
+  /** Compact name the topbar button shows, e.g. "vscode". */
+  readonly shortLabel: string;
 }
 
 export interface DesktopEditorList {

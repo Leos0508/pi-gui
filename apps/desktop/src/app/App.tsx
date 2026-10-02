@@ -19,7 +19,6 @@ import { useRunningLabel } from "../features/conversation/hooks/use-running-labe
 import { useTimelineViewport } from "../features/conversation/hooks/use-timeline-viewport";
 import { buildDisplayTimelineItems } from "../features/conversation/timeline-turns";
 import { useTurnChanges } from "../features/conversation/hooks/use-turn-changes";
-import { formatRelativeTime } from "../lib/string-utils";
 import { restoreTopmostDialogFocus } from "../ui/dialog-focus";
 import { ComposerPanel } from "../features/conversation/composer-panel";
 import { DiffPanel } from "../features/workbench/diff-panel";
@@ -77,7 +76,7 @@ import { useMentionMenu } from "../features/conversation/hooks/use-mention-menu"
 import { useThreadSearch } from "../features/conversation/hooks/use-thread-search";
 import { useWorkspaceMenu } from "../features/threads/hooks/use-workspace-menu";
 import { useThreadActions } from "../features/threads/hooks/use-thread-actions";
-import { ThreadActionsMenu } from "../features/threads/thread-actions";
+import { ChatHeaderActions } from "../features/threads/chat-header-actions";
 import { useNewThreadController } from "../features/threads/hooks/use-new-thread-controller";
 import {
   buildExtensionDockModel,
@@ -969,10 +968,7 @@ export default function App() {
     );
   }
 
-  const openInEditorVisible = Boolean(primarySidebarToggleVisible && selectedWorkspace);
-  const shellClassName = `shell${snapshot.sidebarCollapsed ? " shell--sidebar-collapsed" : ""}${
-    openInEditorVisible ? " shell--with-editor-button" : ""
-  }`;
+  const shellClassName = `shell${snapshot.sidebarCollapsed ? " shell--sidebar-collapsed" : ""}`;
 
   return (
     <div className={shellClassName}>
@@ -982,9 +978,6 @@ export default function App() {
           shortcutLabel={sidebarToggleShortcutLabel}
           onToggle={commands.togglePrimarySidebar}
         />
-      ) : null}
-      {openInEditorVisible ? (
-        <OpenInEditorButton state={openInEditor} onOpenFolder={openSelectedWorkspaceFolder} />
       ) : null}
       {!snapshot.sidebarCollapsed ? (
         <Sidebar
@@ -1031,41 +1024,23 @@ export default function App() {
           api={api}
           panelAvailable={sidePanelAvailable}
           panelVisible={sidePanelVisible}
+          editorControl={
+            selectedWorkspace ? (
+              <OpenInEditorButton state={openInEditor} onOpenFolder={openSelectedWorkspaceFolder} />
+            ) : undefined
+          }
           onTogglePanel={commands.toggleSidePanel}
           sessionTitle={
             snapshot.activeView === "threads" && selectedSession ? displayedSessionTitle : undefined
           }
         >
           {snapshot.activeView === "threads" && selectedWorkspace && selectedSession ? (
-            <>
-              <div className="chat-header__status">
-                {selectedSession.status === "running"
-                  ? runningLabel
-                  : formatRelativeTime(selectedSession.updatedAt)}
-              </div>
-              <div
-                className="chat-header__menu-wrap"
-                ref={threadMenu.openMenu?.surface === "header" ? threadMenu.menuWrapRef : undefined}
-              >
-                <button
-                  aria-haspopup="menu"
-                  aria-expanded={threadMenu.openMenu?.surface === "header"}
-                  aria-label="Thread actions"
-                  className="icon-button"
-                  data-testid="thread-header-menu"
-                  type="button"
-                  onClick={threadMenu.toggleHeaderMenu}
-                >
-                  …
-                </button>
-                {threadMenu.openMenu?.surface === "header" && selectedThreadActions ? (
-                  <ThreadActionsMenu
-                    actions={selectedThreadActions}
-                    className="chat-header__menu"
-                  />
-                ) : null}
-              </div>
-            </>
+            <ChatHeaderActions
+              actions={selectedThreadActions}
+              runningLabel={runningLabel}
+              session={selectedSession}
+              threadMenu={threadMenu}
+            />
           ) : null}
         </Topbar>
 

@@ -3,12 +3,6 @@
   --titlebar-toggle-left: 86px;
   --titlebar-toggle-size: 30px;
   --titlebar-toggle-main-gap: 16px;
-  /* Split editor button: the icon button plus its thin chevron trigger. */
-  --titlebar-editor-trigger-width: 14px;
-  --titlebar-editor-button-gap: 6px;
-  --titlebar-editor-button-width: calc(
-    var(--titlebar-toggle-size) + var(--titlebar-editor-trigger-width)
-  );
   --titlebar-collapsed-main-padding-left: calc(
     var(--titlebar-toggle-left) + var(--titlebar-toggle-size) + var(--titlebar-toggle-main-gap)
   );

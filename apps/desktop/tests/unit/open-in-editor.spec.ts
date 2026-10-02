@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { EditorService } from "../../electron/platform/editors/editor-service";
 import {
   buildEditorLaunchCommand,
+  detectDefaultEditorId,
   detectInstalledEditors,
   resolvePosixCommand,
   resolveWindowsInstallRoot,
@@ -22,6 +23,7 @@ function host(overrides: Partial<EditorDetectionHost> & Pick<EditorDetectionHost
     exists: () => false,
     isExecutable: () => false,
     listDirectory: () => [],
+    runCommand: () => undefined,
     ...overrides,
   } satisfies EditorDetectionHost;
 }
@@ -270,6 +272,7 @@ test("launch commands hand the checkout to each launch kind", () => {
       {
         id: "vscode",
         label: "Visual Studio Code",
+        shortLabel: "vscode",
         launch: { kind: "mac-app", appPath: "/Applications/Visual Studio Code.app" },
       },
       workspacePath,
@@ -283,6 +286,7 @@ test("launch commands hand the checkout to each launch kind", () => {
       {
         id: "cursor",
         label: "Cursor",
+        shortLabel: "Cursor",
         launch: { kind: "command", commandPath: "/usr/bin/cursor" },
       },
       workspacePath,
@@ -293,6 +297,7 @@ test("launch commands hand the checkout to each launch kind", () => {
       {
         id: "zed",
         label: "Zed",
+        shortLabel: "Zed",
         launch: {
           kind: "desktop-entry",
           desktopId: "dev.zed.Zed.desktop",
@@ -311,18 +316,81 @@ test("launch commands hand the checkout to each launch kind", () => {
 const detectedEditor: DetectedEditor = {
   id: "vscode",
   label: "Visual Studio Code",
+  shortLabel: "vscode",
   launch: { kind: "command", commandPath: "/usr/bin/code" },
+};
+
+const cursorEditor: DetectedEditor = {
+  id: "cursor",
+  label: "Cursor",
+  shortLabel: "Cursor",
+  launch: { kind: "command", commandPath: "/usr/bin/cursor" },
 };
 
 test("EditorService lists detected editors without a preference", () => {
   const service = new EditorService({
     detect: () => [detectedEditor],
+    detectDefault: () => undefined,
     launch: () => Promise.resolve(),
   });
 
   expect(service.list()).toEqual({
-    editors: [{ id: "vscode", label: "Visual Studio Code" }],
+    editors: [{ id: "vscode", label: "Visual Studio Code", shortLabel: "vscode" }],
   });
+});
+
+test("EditorService falls back to the OS default handler", () => {
+  const service = new EditorService({
+    detect: () => [cursorEditor, detectedEditor],
+    detectDefault: () => "vscode",
+    launch: () => Promise.resolve(),
+  });
+
+  expect(service.list()).toEqual({
+    editors: [
+      { id: "cursor", label: "Cursor", shortLabel: "Cursor" },
+      { id: "vscode", label: "Visual Studio Code", shortLabel: "vscode" },
+    ],
+    preferredEditorId: "vscode",
+  });
+});
+
+test("EditorService keeps a user pick over the OS default", async () => {
+  const service = new EditorService({
+    detect: () => [cursorEditor, detectedEditor],
+    detectDefault: () => "vscode",
+    launch: () => Promise.resolve(),
+  });
+
+  await service.open("/tmp/project", "cursor");
+  expect(service.list().preferredEditorId).toBe("cursor");
+});
+
+test("EditorService ignores an OS default that is not installed", () => {
+  const service = new EditorService({
+    detect: () => [detectedEditor],
+    detectDefault: () => "cursor",
+    launch: () => Promise.resolve(),
+  });
+
+  expect(service.list().preferredEditorId).toBeUndefined();
+});
+
+test("EditorService probes the OS default once and reuses the answer", () => {
+  let probes = 0;
+  const service = new EditorService({
+    detect: () => [detectedEditor],
+    detectDefault: () => {
+      probes += 1;
+      return "vscode";
+    },
+    launch: () => Promise.resolve(),
+  });
+
+  service.list();
+  service.list();
+  expect(probes).toBe(1);
+  expect(service.list().preferredEditorId).toBe("vscode");
 });
 
 test("EditorService opens a known editor and remembers it as the preference", async () => {
@@ -336,7 +404,7 @@ test("EditorService opens a known editor and remembers it as the preference", as
   });
 
   await expect(service.open("/tmp/project", "vscode")).resolves.toEqual({
-    editors: [{ id: "vscode", label: "Visual Studio Code" }],
+    editors: [{ id: "vscode", label: "Visual Studio Code", shortLabel: "vscode" }],
     preferredEditorId: "vscode",
   });
   expect(launches).toEqual([{ command: "/usr/bin/code", args: ["/tmp/project"] }]);
@@ -346,6 +414,7 @@ test("EditorService rejects an unknown editor without launching anything", async
   let launched = 0;
   const service = new EditorService({
     detect: () => [detectedEditor],
+    detectDefault: () => undefined,
     launch: () => {
       launched += 1;
       return Promise.resolve();
@@ -365,6 +434,7 @@ test("EditorService re-probes when the cached list is stale", async () => {
       probes += 1;
       return probes === 1 ? [] : [detectedEditor];
     },
+    detectDefault: () => undefined,
     launch: () => Promise.resolve(),
   });
 
@@ -380,9 +450,182 @@ test("EditorService drops a failed editor and its preference", async () => {
       probes += 1;
       return probes === 1 ? [detectedEditor] : [];
     },
+    detectDefault: () => undefined,
     launch: () => Promise.reject(new Error("ENOENT")),
   });
 
   await expect(service.open("/tmp/project", "vscode")).rejects.toThrow("ENOENT");
   expect(service.list()).toEqual({ editors: [] });
+});
+
+test("OS default detection maps the Linux folder handler to a detected editor", () => {
+  const defaultId = detectDefaultEditorId(
+    host({
+      platform: "linux",
+      runCommand: (command, args) =>
+        command === "xdg-mime" && args.join(" ") === "query default inode/directory"
+          ? "code.desktop\n"
+          : undefined,
+    }),
+    [cursorEditor, detectedEditor],
+  );
+
+  expect(defaultId).toBe("vscode");
+});
+
+test("OS default detection ignores a handler that is not a known editor", () => {
+  const defaultId = detectDefaultEditorId(
+    host({ platform: "linux", runCommand: () => "org.gnome.Nautilus.desktop\n" }),
+    [detectedEditor],
+  );
+
+  expect(defaultId).toBeUndefined();
+});
+
+test("OS default detection ignores a known handler that is not installed", () => {
+  const defaultId = detectDefaultEditorId(
+    host({ platform: "linux", runCommand: () => "cursor.desktop\n" }),
+    [detectedEditor],
+  );
+
+  expect(defaultId).toBeUndefined();
+});
+
+test("OS default detection answers nothing when the probe command is missing", () => {
+  const defaultId = detectDefaultEditorId(host({ platform: "linux" }), [detectedEditor]);
+
+  expect(defaultId).toBeUndefined();
+});
+
+test("macOS default detection matches the LaunchServices handler by bundle id", () => {
+  const defaultId = detectDefaultEditorId(
+    host({
+      platform: "darwin",
+      homeDir: "/Users/dev",
+      exists: (candidate) => candidate.endsWith("com.apple.launchservices.secure.plist"),
+      runCommand: (command, args) => {
+        if (command !== "plutil") {
+          return undefined;
+        }
+        if (args.includes("-convert")) {
+          return JSON.stringify({
+            LSHandlers: [
+              { LSHandlerContentType: "public.jpeg", LSHandlerRoleAll: "com.apple.Preview" },
+              { LSHandlerContentType: "public.folder", LSHandlerRoleAll: "com.microsoft.VSCode" },
+            ],
+          });
+        }
+        return args.at(-1) === "/Applications/Visual Studio Code.app/Contents/Info.plist"
+          ? "com.microsoft.VSCode\n"
+          : undefined;
+      },
+    }),
+    [
+      {
+        id: "vscode",
+        label: "Visual Studio Code",
+        shortLabel: "vscode",
+        launch: { kind: "mac-app", appPath: "/Applications/Visual Studio Code.app" },
+      },
+    ],
+  );
+
+  expect(defaultId).toBe("vscode");
+});
+
+test("macOS default detection answers nothing without the preferences plist", () => {
+  const defaultId = detectDefaultEditorId(
+    host({
+      platform: "darwin",
+      exists: () => false,
+      runCommand: () => "{}",
+    }),
+    [detectedEditor],
+  );
+
+  expect(defaultId).toBeUndefined();
+});
+
+test("Windows default detection matches the Directory shell command to an install path", () => {
+  const defaultId = detectDefaultEditorId(
+    host({
+      platform: "win32",
+      runCommand: (command, args) => {
+        if (command !== "reg") {
+          return undefined;
+        }
+        if (args[1] === "HKCU\\Software\\Classes\\Directory\\shell") {
+          return (
+            "\r\nHKEY_CURRENT_USER\\Software\\Classes\\Directory\\shell\r\n" +
+            "    (Default)    REG_SZ    open\r\n\r\n"
+          );
+        }
+        return args[1] === "HKCU\\Software\\Classes\\Directory\\shell\\open\\command"
+          ? '    (Default)    REG_SZ    "C:\\Program Files\\Microsoft VS Code\\Code.exe" "%1"\r\n'
+          : undefined;
+      },
+    }),
+    [
+      {
+        id: "vscode",
+        label: "Visual Studio Code",
+        shortLabel: "vscode",
+        launch: { kind: "command", commandPath: "C:\\Program Files\\Microsoft VS Code\\Code.exe" },
+      },
+    ],
+  );
+
+  expect(defaultId).toBe("vscode");
+});
+
+test("Windows default detection falls back to HKCR and matches without quotes", () => {
+  const defaultId = detectDefaultEditorId(
+    host({
+      platform: "win32",
+      runCommand: (command, args) => {
+        if (command !== "reg") {
+          return undefined;
+        }
+        if (args[1] === "HKCU\\Software\\Classes\\Directory\\shell") {
+          return undefined;
+        }
+        if (args[1] === "HKCR\\Directory\\shell") {
+          return "    (Default)    REG_SZ    open\n";
+        }
+        return args[1] === "HKCR\\Directory\\shell\\open\\command"
+          ? '    (Default)    REG_SZ    C:\\Users\\dev\\AppData\\Local\\Programs\\Cursor\\Cursor.exe "%V"\n'
+          : undefined;
+      },
+    }),
+    [
+      {
+        id: "cursor",
+        label: "Cursor",
+        shortLabel: "Cursor",
+        launch: {
+          kind: "command",
+          commandPath: "c:\\users\\dev\\appdata\\local\\programs\\cursor\\cursor.exe",
+        },
+      },
+    ],
+  );
+
+  expect(defaultId).toBe("cursor");
+});
+
+test("Windows default detection answers nothing when the command path is unknown", () => {
+  const defaultId = detectDefaultEditorId(
+    host({
+      platform: "win32",
+      runCommand: (command, args) =>
+        command === "reg" && args[1] === "HKCU\\Software\\Classes\\Directory\\shell"
+          ? "    (Default)    REG_SZ    open\n"
+          : command === "reg" && args[1]?.endsWith("\\open\\command")
+            ? '    (Default)    REG_SZ    "C:\\Windows\\explorer.exe" "%V"\n'
+            : undefined,
+    }),
+    [detectedEditor],
+  );
+
+  expect(defaultId).toBeUndefined();
 });

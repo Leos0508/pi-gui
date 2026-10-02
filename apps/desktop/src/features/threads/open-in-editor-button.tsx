@@ -1,4 +1,4 @@
-import { CheckIcon, ChevronDownIcon, OpenInEditorIcon } from "../../ui/icons";
+import { CheckIcon, ChevronDownIcon } from "../../ui/icons";
 import type { OpenInEditorState } from "./hooks/use-open-in-editor";
 
 interface OpenInEditorButtonProps {
@@ -7,6 +7,7 @@ interface OpenInEditorButtonProps {
 }
 
 export function OpenInEditorButton({ state, onOpenFolder }: OpenInEditorButtonProps) {
+  const displayLabel = state.loading ? "…" : (state.targetLabel ?? "Folder");
   const label = state.loading
     ? "Looking for editors…"
     : state.targetLabel
@@ -24,7 +25,9 @@ export function OpenInEditorButton({ state, onOpenFolder }: OpenInEditorButtonPr
         type="button"
         onClick={() => state.openIn()}
       >
-        <OpenInEditorIcon />
+        <span className="open-in-editor__label" data-testid="open-in-editor-label">
+          {displayLabel}
+        </span>
       </button>
       <button
         aria-expanded={state.menuOpen}
