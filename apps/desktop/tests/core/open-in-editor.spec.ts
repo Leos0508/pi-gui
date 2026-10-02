@@ -48,18 +48,22 @@ test("shows the detected editor beside the side panel toggle", async () => {
       return app.listEditors();
     });
 
-    // The label is the short name of the target editor; the main half shows
-    // its brand mark when the catalog has one, text otherwise.
+    // The main half shows the target editor's brand mark when the catalog has
+    // one, its short name otherwise. Never both.
     const label = window.getByTestId("open-in-editor-label");
-    await expect(label).toBeVisible();
     if (list.editors.length === 0) {
       await expect(label).toHaveText("Folder");
       await expect(mainButton.locator("svg")).toHaveCount(0);
     } else {
       const preferredId = list.preferredEditorId ?? list.editors[0]?.id;
       const preferred = list.editors.find((editor) => editor.id === preferredId);
-      await expect(label).toHaveText(preferred?.shortLabel ?? "Folder");
-      await expect(mainButton.locator("svg")).toHaveCount(hasEditorIcon(preferredId) ? 1 : 0);
+      if (hasEditorIcon(preferredId)) {
+        await expect(mainButton.locator("svg")).toHaveCount(1);
+        await expect(label).toHaveCount(0);
+      } else {
+        await expect(mainButton.locator("svg")).toHaveCount(0);
+        await expect(label).toHaveText(preferred?.shortLabel ?? "Folder");
+      }
     }
 
     await trigger.click();
@@ -103,7 +107,12 @@ test("shows the detected editor beside the side panel toggle", async () => {
         await expect(menu).toBeVisible();
         await window.getByTestId(`open-in-editor-${other.id}`).click();
         await expect(menu).toHaveCount(0);
-        await expect(label).toHaveText(other.shortLabel);
+        if (hasEditorIcon(other.id)) {
+          await expect(label).toHaveCount(0);
+          await expect(mainButton.locator("svg")).toHaveCount(1);
+        } else {
+          await expect(label).toHaveText(other.shortLabel);
+        }
         const refreshed = await window.evaluate(async () => {
           const app = globalThis.window.piApp;
           if (!app) {

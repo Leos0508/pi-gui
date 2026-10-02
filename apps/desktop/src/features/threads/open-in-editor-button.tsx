@@ -1,5 +1,5 @@
 import { CheckIcon, ChevronDownIcon } from "../../ui/icons";
-import { EditorIcon } from "../../ui/editor-icons";
+import { EditorIcon, hasEditorIcon } from "../../ui/editor-icons";
 import type { OpenInEditorState } from "./hooks/use-open-in-editor";
 
 interface OpenInEditorButtonProps {
@@ -26,10 +26,13 @@ export function OpenInEditorButton({ state, onOpenFolder }: OpenInEditorButtonPr
         type="button"
         onClick={() => state.openIn()}
       >
-        <EditorIcon editorId={state.targetEditorId} />
-        <span className="open-in-editor__label" data-testid="open-in-editor-label">
-          {displayLabel}
-        </span>
+        {hasEditorIcon(state.targetEditorId) ? (
+          <EditorIcon editorId={state.targetEditorId} />
+        ) : (
+          <span className="open-in-editor__label" data-testid="open-in-editor-label">
+            {displayLabel}
+          </span>
+        )}
       </button>
       <button
         aria-expanded={state.menuOpen}

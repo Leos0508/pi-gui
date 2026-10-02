@@ -179,9 +179,10 @@
 .open-in-editor__main {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   max-width: 180px;
-  padding: 0 9px 0 11px;
+  padding: 0 9px;
   border-radius: var(--radius-md) 0 0 var(--radius-md);
 }
 
