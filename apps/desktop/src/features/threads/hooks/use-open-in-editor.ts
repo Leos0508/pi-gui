@@ -16,6 +16,8 @@ export interface OpenInEditorState {
   readonly loading: boolean;
   readonly error: string | undefined;
   readonly targetLabel: string | undefined;
+  /** Catalog id of the editor the main button opens; undefined while probing. */
+  readonly targetEditorId: string | undefined;
   readonly wrapRef: RefObject<HTMLDivElement | null>;
   readonly toggleMenu: () => void;
   readonly openIn: () => void;
@@ -179,6 +181,7 @@ export function useOpenInEditor(params: UseOpenInEditorParams): OpenInEditorStat
     loading,
     error,
     targetLabel: preferred?.shortLabel,
+    targetEditorId: preferred?.id,
     wrapRef,
     toggleMenu,
     openIn,

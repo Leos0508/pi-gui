@@ -1,4 +1,5 @@
 import { CheckIcon, ChevronDownIcon } from "../../ui/icons";
+import { EditorIcon } from "../../ui/editor-icons";
 import type { OpenInEditorState } from "./hooks/use-open-in-editor";
 
 interface OpenInEditorButtonProps {
@@ -25,6 +26,7 @@ export function OpenInEditorButton({ state, onOpenFolder }: OpenInEditorButtonPr
         type="button"
         onClick={() => state.openIn()}
       >
+        <EditorIcon editorId={state.targetEditorId} />
         <span className="open-in-editor__label" data-testid="open-in-editor-label">
           {displayLabel}
         </span>
@@ -61,7 +63,12 @@ export function OpenInEditorButton({ state, onOpenFolder }: OpenInEditorButtonPr
                 type="button"
                 onClick={() => state.selectEditor(editor.id)}
               >
-                <span className="open-in-editor__item-label">{editor.label}</span>
+                <span className="open-in-editor__item-main">
+                  <span className="open-in-editor__item-icon">
+                    <EditorIcon editorId={editor.id} />
+                  </span>
+                  <span className="open-in-editor__item-label">{editor.label}</span>
+                </span>
                 {editor.id === state.preferredEditorId ? (
                   <span className="open-in-editor__item-check">
                     <CheckIcon />

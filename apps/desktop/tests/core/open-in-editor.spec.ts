@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { hasEditorIcon } from "../../src/ui/editor-icons";
 import {
   getDesktopState,
   launchDesktop,
@@ -47,15 +48,18 @@ test("shows the detected editor beside the side panel toggle", async () => {
       return app.listEditors();
     });
 
-    // The label is the short name of the target editor, not an icon.
+    // The label is the short name of the target editor; the main half shows
+    // its brand mark when the catalog has one, text otherwise.
     const label = window.getByTestId("open-in-editor-label");
     await expect(label).toBeVisible();
     if (list.editors.length === 0) {
       await expect(label).toHaveText("Folder");
+      await expect(mainButton.locator("svg")).toHaveCount(0);
     } else {
       const preferredId = list.preferredEditorId ?? list.editors[0]?.id;
       const preferred = list.editors.find((editor) => editor.id === preferredId);
       await expect(label).toHaveText(preferred?.shortLabel ?? "Folder");
+      await expect(mainButton.locator("svg")).toHaveCount(hasEditorIcon(preferredId) ? 1 : 0);
     }
 
     await trigger.click();
@@ -81,7 +85,10 @@ test("shows the detected editor beside the side panel toggle", async () => {
       await expect(window.getByTestId("open-in-editor-folder")).toBeVisible();
     } else {
       for (const editor of list.editors) {
-        await expect(window.getByTestId(`open-in-editor-${editor.id}`)).toBeVisible();
+        const item = window.getByTestId(`open-in-editor-${editor.id}`);
+        await expect(item).toBeVisible();
+        await expect(item).toContainText(editor.label);
+        await expect(item.locator("svg")).toHaveCount(hasEditorIcon(editor.id) ? 1 : 0);
       }
     }
     await window.keyboard.press("Escape");
